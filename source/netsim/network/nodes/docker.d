@@ -1,14 +1,15 @@
 module netsim.network.nodes.docker;
 
-import netsim.network.nodes.docker.ns;
-import netsim.network.nodes.docker.tap;
+import netsim.network.nodes.docker_utils.ns;
+import netsim.network.nodes.docker_utils.tap;
 
 import netsim.network.iface;
 import netsim.network.node;
 
-import std.process : execute;
 import std.exception : enforce, errnoEnforce;
 import std.format : format, formattedRead;
+import std.process : execute;
+import std.stdio : File;
 
 import core.sys.posix.unistd : read, write;
 
@@ -18,7 +19,6 @@ import core.sys.posix.unistd : read, write;
 final class DockerNode : Node
 {
   private DockerInterface[] interfaces;
-  private ubyte[65_536] outgoingBuffer;
 
   private string containerId; // 64-char id
   private int containerPid; // The external pid of pid 1 in the container
@@ -40,21 +40,21 @@ final class DockerNode : Node
     assert(runResult.output.length == 65);
 
     // Store container id
-    formattedRead!"%s\n"(&containerId);
+    runResult.output.formattedRead!"%s\n"(containerId);
 
     // Get external pid of container pid 1
     // If successful, this command prints external pid and a newline
     auto getPidResult = execute([
-      "docker", "inspect", "--format={{ .State.Pid }}", "ubuntu"
+      "docker", "inspect", "--format={{ .State.Pid }}", containerId
     ]);
     enforce(getPidResult.status == 0,
       format!"docker inspect returned non-zero status code %d with output '%s'"(
-        runResult.status,
-        runResult.output
+        getPidResult.status,
+        getPidResult.output
     ));
 
     // Store pid
-    formattedRead!"%d\n"(&containerPid);
+    getPidResult.output.formattedRead!"%d\n"(containerPid);
 
     addInterface("eth0");
     addInterface("eth1");
@@ -81,11 +81,17 @@ final class DockerNode : Node
     interfaces ~= iface;
     return iface;
   }
+
+  public string getContainerId()
+  {
+    return containerId;
+  }
 }
 
 private class DockerInterface : NetworkInterface
 {
   File tap;
+  ubyte[65_536] outgoingBuffer;
 
   this(string name, File tap)
   {
@@ -95,7 +101,7 @@ private class DockerInterface : NetworkInterface
 
   override void handleIncoming(ubyte[] frame)
   {
-    int result = write(tap.fileno, cast(void*) frame.ptr, frame.length);
+    long result = write(tap.fileno, cast(void*) frame.ptr, frame.length);
 
     errnoEnforce(result != -1, "write to docker tap failed");
 
@@ -109,7 +115,7 @@ private class DockerInterface : NetworkInterface
   {
     long result;
 
-    while ((result = read(tap.fileno, cast(void*)&outgoingBuffer, buffer.sizeof)) == 0)
+    while ((result = read(tap.fileno, cast(void*)&outgoingBuffer, outgoingBuffer.sizeof)) == 0)
       yield();
 
     errnoEnforce(result != -1, "read from docker tap failed");

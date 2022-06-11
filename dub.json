@@ -6,10 +6,11 @@
   ],
   "copyright": "Copyright © 2022, Jonas Meeuws",
   "license": "proprietary",
+  "targetType": "executable",
   "preBuildCommands": [
-    "dub run dpp -- --preprocess-only source/**/*_dpp.dpp"
+    "./pre-build.sh"
   ],
   "postBuildCommands": [
-    "rm source/**/*_dpp.d"
+    "./post-build.sh"
   ]
 }

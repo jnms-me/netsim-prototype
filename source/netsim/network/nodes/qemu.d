@@ -4,9 +4,9 @@ import netsim.hostos : LoopbackManager;
 import netsim.network.iface;
 import netsim.network.node;
 
-import std.socket : Socket, UdpSocket, InternetAddress, wouldHaveBlocked;
-import std.process : spawnProcess, Pid;
 import std.conv : to;
+import std.process : Pid, spawnProcess;
+import std.socket : InternetAddress, Socket, UdpSocket, wouldHaveBlocked;
 
 final class QemuNode : Node
 {

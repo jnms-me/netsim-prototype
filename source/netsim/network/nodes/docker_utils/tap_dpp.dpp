@@ -1,0 +1,14 @@
+module netsim.network.nodes.docker_utils.tap_dpp;
+
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <linux/if.h>
+#include <linux/if_tun.h>
+#include <errno.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+private enum DPP_TUNSETIFF = TUNSETIFF;
+mixin("enum TUNSETIFF = DPP_TUNSETIFF;");
