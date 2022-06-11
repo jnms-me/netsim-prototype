@@ -1,0 +1,15 @@
+{
+  "name": "netsim-prototype-server",
+  "description": "Netsim server prototype",
+  "authors": [
+    "Jonas Meeuws"
+  ],
+  "copyright": "Copyright © 2022, Jonas Meeuws",
+  "license": "proprietary",
+  "preBuildCommands": [
+    "dub run dpp -- --preprocess-only source/**/*_dpp.dpp"
+  ],
+  "postBuildCommands": [
+    "rm source/**/*_dpp.d"
+  ]
+}
