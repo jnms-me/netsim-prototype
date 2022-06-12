@@ -3,6 +3,7 @@ module netsim.network.iface;
 public import netsim.fiber : yield;
 
 import netsim.fiber;
+import netsim.network.node;
 
 import std.exception : enforce;
 import std.format : format;
@@ -14,19 +15,31 @@ import std.format : format;
 abstract class NetworkInterface
 {
   private string name;
+  private Node node;
   private NetworkInterface connected;
   private Fiber fiber;
 
-  this(string name)
+  this(string name, Node node) @trusted
   in (name.length > 0)
   {
     this.name = name;
+    this.node = node;
     this.fiber = new Fiber(&outgoingLoop);
   }
 
-  public final string getName()
+  public final string getName() const
   {
     return name;
+  }
+
+  public final Node getNode()
+  {
+    return node;
+  }
+
+  override string toString() const
+  {
+    return format!"interface %s"(getName);
   }
 
   /**
@@ -91,7 +104,7 @@ abstract class NetworkInterface
   private void registerOutgoingLoopFiber()
   {
     auto manager = FiberManager.getInstance();
-    manager.register(fiber, FiberType.LOOPBACK, format("Interface '%s' send outgoing loop", name));
+    manager.register(fiber, FiberType.LOOPBACK, format!"Interface '%s' send outgoing loop"(name));
   }
 
   private void unRegisterOutgoingLoopFiber()

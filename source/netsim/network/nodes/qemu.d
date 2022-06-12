@@ -5,17 +5,19 @@ import netsim.network.iface;
 import netsim.network.node;
 
 import std.conv : to;
+import std.format : format;
 import std.process : Pid, spawnProcess;
 import std.socket : InternetAddress, Socket, UdpSocket, wouldHaveBlocked;
 
 final class QemuNode : Node
 {
+  private string name;
   private QemuSocketInterface[] interfaces;
   private Pid pid;
 
-  public this(string image, string mac)
+  public this(string name, string image, string mac)
   {
-    interfaces ~= new QemuSocketInterface("eth0");
+    interfaces ~= new QemuSocketInterface("eth0", this);
 
     string executable = "/usr/bin/qemu-system-x86_64";
     string[] args;
@@ -28,7 +30,22 @@ final class QemuNode : Node
     pid = spawnProcess([executable] ~ args);
   }
 
-  override public NetworkInterface[] getInterfaces()
+  override public string getName() const
+  {
+    return name;
+  }
+
+  override public NodeType getType() const
+  {
+    return NodeType.Qemu;
+  }
+
+  override public string toString() const
+  {
+    return format!"%s node %s"(getType, getName);
+  }
+
+  override public NetworkInterface[] getInterfaces() const
   {
     return cast(NetworkInterface[]) interfaces;
   }
@@ -46,9 +63,9 @@ private class QemuSocketInterface : NetworkInterface
   private UdpSocket conn;
   private ubyte[65_536] outgoingBuffer;
 
-  public this(string name)
+  public this(string name, QemuNode node)
   {
-    super(name);
+    super(name, cast(Node) node);
     auto lo = LoopbackManager.getInstance();
     string address = lo.getAddress();
     ourAddress = new InternetAddress(address, lo.reservePort());
@@ -122,6 +139,6 @@ private class QemuSocketInterface : NetworkInterface
     import std.format : format;
 
     // Example: -netdev socket,id=net0,udp=127.0.0.1:63000,localaddr=127.0.0.1:63100
-    return format("socket,id=%s,udp=%s,localaddr=%s", netId, ourAddress, qemuAddress);
+    return format!"socket,id=%s,udp=%s,localaddr=%s"(netId, ourAddress, qemuAddress);
   }
 }

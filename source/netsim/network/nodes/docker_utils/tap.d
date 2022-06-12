@@ -53,6 +53,10 @@ in (ifname.length <= IFNAME_MAXSIZE)
     throw new Exception("opentap failed: ioctl failed");
   }
 
+  // Set non-blocking flag
+  int flags = fcntl(fd, F_GETFL, 0);
+  fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+
   // TODO: put errno and strerror in the exception
 
   assert(fd >= 0, "opentap failed: unknown error");

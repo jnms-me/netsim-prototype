@@ -6,38 +6,59 @@ import netsim.network.nodes.docker_utils.tap;
 import netsim.network.iface;
 import netsim.network.node;
 
-import std.exception : enforce, errnoEnforce;
+import std.exception : enforce;
 import std.format : format, formattedRead;
+import std.format : format;
 import std.process : execute;
-import std.stdio : File;
+import std.stdio : File, writefln, writeln;
+import std.string : fromStringz;
 
+import core.stdc.errno : EAGAIN, errno, EWOULDBLOCK;
+import core.stdc.string : strerror;
 import core.sys.posix.unistd : read, write;
+
+enum image = "weibeld/ubuntu-networking";
 
 /** 
  * A docker container
  */
 final class DockerNode : Node
 {
+  private string name;
   private DockerInterface[] interfaces;
 
   private string containerId; // 64-char id
   private int containerPid; // The external pid of pid 1 in the container
 
-  public this()
+  public this(string name)
   {
+    this.name = name;
+
+    // Pull image (should probably be done globally)
+    auto pullResult = execute(["docker", "pull", image]);
+    if (pullResult.status != 0)
+      throw new NodeException(this,
+        format!"docker pull returned non-zero status code %d with output '%s'"(
+          pullResult.status,
+          pullResult.output
+      ));
+
     // Run container
     // If successful, this command prints the 64-char id of the container (plus a newline)
     auto runResult = execute([
-      "docker", "run", "-d", "--rm", "--network=none", "ubuntu",
-      "sleep", "inf"
+      "docker", "run", "-d", "--rm", "--network=none", "--cap-add=NET_ADMIN",
+      image, "sleep", "inf"
     ]);
-    enforce(
-      runResult.status == 0,
-      format!"docker run returned non-zero status code %d with output '%s'"(
-        runResult.status,
-        runResult.output
-    ));
-    assert(runResult.output.length == 65);
+    if (runResult.status != 0)
+      throw new NodeException(this,
+        format!"docker run returned non-zero status code %d with output '%s'"(
+          runResult.status,
+          runResult.output
+      ));
+    if (runResult.output.length != 65)
+      throw new NodeException(this,
+        format!"unexpected docker run output: '%s' (expected 64-char id + a newline)"(
+          runResult.output));
 
     // Store container id
     runResult.output.formattedRead!"%s\n"(containerId);
@@ -47,11 +68,12 @@ final class DockerNode : Node
     auto getPidResult = execute([
       "docker", "inspect", "--format={{ .State.Pid }}", containerId
     ]);
-    enforce(getPidResult.status == 0,
-      format!"docker inspect returned non-zero status code %d with output '%s'"(
-        getPidResult.status,
-        getPidResult.output
-    ));
+    if (getPidResult.status != 0)
+      throw new NodeException(this,
+        format!"docker inspect returned non-zero status code %d with output '%s'"(
+          getPidResult.status,
+          getPidResult.output
+      ));
 
     // Store pid
     getPidResult.output.formattedRead!"%d\n"(containerPid);
@@ -62,7 +84,22 @@ final class DockerNode : Node
     addInterface("eth3");
   }
 
-  override public NetworkInterface[] getInterfaces()
+  override public string getName() const
+  {
+    return name;
+  }
+
+  override public NodeType getType() const
+  {
+    return NodeType.Docker;
+  }
+
+  override public string toString() const
+  {
+    return format!"%s node %s"(getType, getName);
+  }
+
+  override public NetworkInterface[] getInterfaces() const
   {
     return cast(NetworkInterface[]) interfaces;
   }
@@ -77,14 +114,19 @@ final class DockerNode : Node
       tap = openTap(name);
     });
 
-    DockerInterface iface = new DockerInterface(name, tap);
+    DockerInterface iface = new DockerInterface(name, this, tap);
     interfaces ~= iface;
     return iface;
   }
 
-  public string getContainerId()
+  public string getContainerId() const
   {
     return containerId;
+  }
+
+  public int getContainerPid() const
+  {
+    return containerPid;
   }
 }
 
@@ -93,33 +135,59 @@ private class DockerInterface : NetworkInterface
   File tap;
   ubyte[65_536] outgoingBuffer;
 
-  this(string name, File tap)
+  this(string name, DockerNode node, File tap)
   {
-    super(name);
+    super(name, cast(Node) node);
     this.tap = tap;
   }
 
   override void handleIncoming(ubyte[] frame)
   {
+    writefln("Incoming frame of %d bytes to node %s interface %s", frame.length, getNode, this);
+
     long result = write(tap.fileno, cast(void*) frame.ptr, frame.length);
 
-    errnoEnforce(result != -1, "write to docker tap failed");
-
-    assert(result == frame.length,
-      format!"not all bytes were written in write to docker tap: %d out of %d bytes"(
-        result, frame.length
-    ));
+    if (result == -1)
+    {
+      if (errno == EAGAIN || errno == EWOULDBLOCK)
+      {
+        // writefln("yielding handleIncoming %s %s", getNode.toString, toString);
+        yield;
+      }
+      else
+        throw new NodeInterfaceException(getNode, this,
+          format!"write to tap failed with errno %d and strerror %s"(errno, strerror(errno))
+        );
+    }
+    else if (result != frame.length)
+      throw new NodeInterfaceException(getNode, this,
+        format!"not all bytes were written to docker tap: %d out of %d bytes"(result, frame.length)
+      );
   }
 
   override ubyte[] generateOutgoing()
   {
-    long result;
+    while (true)
+    {
+      long result = read(tap.fileno, cast(void*)&outgoingBuffer, outgoingBuffer.sizeof);
 
-    while ((result = read(tap.fileno, cast(void*)&outgoingBuffer, outgoingBuffer.sizeof)) == 0)
-      yield();
-
-    errnoEnforce(result != -1, "read from docker tap failed");
-
-    return outgoingBuffer[0 .. result];
+      if (result == -1)
+      {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+        {
+          // writefln("yielding generateOutgoing %s %s", getNode.toString, toString);
+          yield;
+        }
+        else
+          throw new NodeInterfaceException(getNode, this,
+            format!"read from tap failed with errno %d and strerror %s"(errno, strerror(errno))
+          );
+      }
+      else
+      {
+        writefln("Frame with %d bytes outgoing from node %s interface %s", result, getNode, this);
+        return outgoingBuffer[0 .. result];
+      }
+    }
   }
 }
