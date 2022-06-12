@@ -7,10 +7,10 @@
   "copyright": "Copyright © 2022, Jonas Meeuws",
   "license": "proprietary",
   "targetType": "executable",
-  "preBuildCommands": [
-    "./pre-build.sh"
+  "preGenerateCommands": [
+    "./dpp-build.sh"
   ],
   "postBuildCommands": [
-    "./post-build.sh"
+    "./dpp-clean.sh"
   ]
 }
