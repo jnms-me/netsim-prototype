@@ -1,3 +1,10 @@
 #!/usr/bin/env bash
 dpp_d_files=$(find source/ -name '*_dpp.d')
-rm $dpp_d_files
+dpp_d_tmp_files=$(find source/ -name '*_dpp.d.tmp')
+
+if [ ! -z "$dpp_d_files" ]; then
+  rm $dpp_d_files
+fi
+if [ ! -z "$dpp_d_tmp_files" ]; then
+  rm $dpp_d_tmp_files
+fi

@@ -23,6 +23,7 @@ final class QemuNode : Node
     string[] args;
     args ~= ["-smp", "cores=2"];
     args ~= ["-m", "2048"];
+    args ~= ["-enable-kvm"];
     args ~= ["-cdrom", image];
     args ~= ["-device", "e1000,netdev=net0,mac=" ~ mac];
     args ~= ["-netdev", interfaces[0].toNetdevArgString("net0")];
