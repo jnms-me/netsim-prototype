@@ -1,0 +1,30 @@
+name: dub build & test
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - uses: dlang-community/setup-dlang@v1
+      with:
+        compiler: dmd-latest
+
+    - name: Create llvm environment
+      uses: aminya/setup-cpp@v1
+      with:
+        compiler: llvm-11.0.0
+    
+    - name: Install dpp
+      run: dub fetch dpp && dub build dpp
+
+    - name: Build project
+      run: dub build
+
+    - name: Run unittests
+      run: dub test

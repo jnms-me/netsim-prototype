@@ -7,6 +7,7 @@
   "copyright": "Copyright © 2022, Jonas Meeuws",
   "license": "proprietary",
   "targetType": "executable",
+  "mainSourceFile": "source/netsim/app.d",
   "preGenerateCommands": [
     "./dpp-build.sh"
   ],

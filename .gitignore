@@ -13,3 +13,4 @@ netsim-prototype-server-test-*
 *.o
 *.obj
 *.lst
+*.tmp
