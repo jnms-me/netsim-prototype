@@ -10,7 +10,7 @@ import std.format : format;
 
 /** 
  * Represents an interface that can exchange layer 2 frames with exactly one other interface.
- * Interfaces exchange frames by calling the `send` method of the connected `NetworkInterface`.
+ * Interfaces exchange frames using `other.handleIncoming(generateOutgoing())` in the `outgoingLoop`.
  */
 abstract class NetworkInterface
 {
@@ -19,12 +19,19 @@ abstract class NetworkInterface
   private NetworkInterface connected;
   private Fiber fiber;
 
-  this(string name, Node node) @trusted
+  protected this(string name, Node node) @trusted
   in (name.length > 0)
   {
     this.name = name;
     this.node = node;
     this.fiber = new Fiber(&outgoingLoop);
+  }
+
+  public ~this()
+  {
+    ConnectedInterfacePair pair = getConnectedPair;
+    if (pair !is null)
+      pair.disconnect;
   }
 
   public final string getName() const
@@ -97,7 +104,7 @@ abstract class NetworkInterface
    *   - Waiting on I/O operations to complete
    *   - The interface's node is not yet ready to accept the frame
    */
-  abstract void handleIncoming(ubyte[] frame); // TODO: Pcap, check if connected
+  protected abstract void handleIncoming(ubyte[] frame); // TODO: Pcap, check if connected
 
   // Outgoing frames
 
@@ -132,7 +139,7 @@ abstract class NetworkInterface
    *   - Waiting for I/O operations to complete
    *   - Waiting for new frames
    */
-  abstract ubyte[] generateOutgoing();
+  protected abstract ubyte[] generateOutgoing();
 }
 
 final class ConnectedInterfacePair

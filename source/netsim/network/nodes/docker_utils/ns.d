@@ -1,6 +1,9 @@
 module netsim.network.nodes.docker_utils.ns;
 
+import netsim.utils.exception;
+
 import std.conv : to;
+import std.format : format;
 import std.stdio : File;
 
 extern (C) int setns(int fd, int nstype);
@@ -24,5 +27,5 @@ in (pid > 0)
     nsfile.close;
 
   if (setns(nsfile.fileno, 0) == -1)
-    throw new Exception("setns failed");
+    throw new Exception(format!"setns failed with %s"(errnoInfo));
 }

@@ -99,7 +99,7 @@ final class FiberManager
 
       size_t prevLength = fibers.length;
       fibers = fibers.remove!(f => f.fiber == fiber);
-      assert(fibers.length == prevLength + 1);
+      assert(fibers.length == prevLength - 1);
     }
   }
 }

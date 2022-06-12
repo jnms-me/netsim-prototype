@@ -5,17 +5,20 @@ import netsim.network.nodes.docker_utils.tap;
 
 import netsim.network.iface;
 import netsim.network.node;
+import netsim.utils.exception;
 
 import std.exception : enforce;
 import std.format : format, formattedRead;
 import std.format : format;
 import std.process : execute;
-import std.stdio : File, writefln, writeln;
+import std.stdio : File;
 import std.string : fromStringz;
 
 import core.stdc.errno : EAGAIN, errno, EWOULDBLOCK;
 import core.stdc.string : strerror;
 import core.sys.posix.unistd : read, write;
+
+debug import std.stdio : writeln, writefln;
 
 enum image = "weibeld/ubuntu-networking";
 
@@ -84,6 +87,24 @@ final class DockerNode : Node
     addInterface("eth3");
   }
 
+  ~this()
+  {
+    writeln("Destructing " ~ toString);
+
+    foreach (iface; interfaces)
+      destroy(iface);
+
+    auto stopResult = execute([
+      "docker", "stop", "--time=4", containerId
+    ]);
+    if (stopResult.status != 0)
+      throw new NodeException(this,
+        format!"docker stop returned non-zero status code %d with output '%s'"(
+          stopResult.status,
+          stopResult.output
+      ));
+  }
+
   override public string getName() const
   {
     return name;
@@ -143,7 +164,7 @@ private class DockerInterface : NetworkInterface
 
   override void handleIncoming(ubyte[] frame)
   {
-    writefln("Incoming frame of %d bytes to node %s interface %s", frame.length, getNode, this);
+    debug writefln("Incoming frame of %d bytes to node %s interface %s", frame.length, getNode, this);
 
     long result = write(tap.fileno, cast(void*) frame.ptr, frame.length);
 
@@ -185,7 +206,7 @@ private class DockerInterface : NetworkInterface
       }
       else
       {
-        writefln("Frame with %d bytes outgoing from node %s interface %s", result, getNode, this);
+        debug writefln("Frame with %d bytes outgoing from node %s interface %s", result, getNode, this);
         return outgoingBuffer[0 .. result];
       }
     }

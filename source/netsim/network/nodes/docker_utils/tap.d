@@ -1,14 +1,15 @@
 module netsim.network.nodes.docker_utils.tap;
 
 import netsim.network.nodes.docker_utils.tap_dpp;
+import netsim.utils.exception;
 
-import std.exception : enforce;
+import std.exception : enforce, ErrnoException;
 import std.format : format;
 import std.process : execute;
 import std.stdio : File;
 import std.string : toStringz;
 
-enum IFNAME_MAXSIZE = IFNAMSIZ;
+enum IFNAME_MAXSIZE = IFNAMSIZ - 1;
 
 void createTap(string ifname)
 in (ifname.length <= IFNAME_MAXSIZE)
@@ -27,41 +28,46 @@ File openTap(string ifname)
 in (ifname !is null)
 in (ifname.length <= IFNAME_MAXSIZE)
 {
-  char* ifnamez = cast(char*) ifname.toStringz;
+  enforce(ifname.length <= IFNAME_MAXSIZE,
+    format!"openTap failed: ifname is too long (limit: %d)"(IFNAME_MAXSIZE)
+  );
 
-  int fd;
-
-  // Todo: Clean this up
-
+  // Build config struct
   ifreq ifr;
-  ifr.ifr_ifrn.ifrn_name = 0;
-  enum ifr_name_size = ifr.ifr_ifrn.ifrn_name.sizeof;
-  if (snprintf(&ifr.ifr_ifrn.ifrn_name[0], ifr_name_size, "%s", ifnamez) >= ifr_name_size)
-  {
-    throw new Exception(format!"opentap failed: ifname is too long (limit: %d)"(IFNAMSIZ));
-  }
+  // Copy name string, converting it to a zero-terminated string
+  ifr.ifr_ifrn.ifrn_name[] = 0;
+  ifr.ifr_ifrn.ifrn_name[0 .. ifname.length] = ifname[];
   ifr.ifr_ifru.ifru_flags = IFF_TAP | IFF_NO_PI;
 
+  // Open file descriptor
+  int fd;
   if ((fd = open("/dev/net/tun".toStringz, O_RDWR)) == -1)
-  {
-    throw new Exception("opentap failed: open failed");
-  }
+    throw new Exception(format!"openTap failed: open /dev/net/tun failed with %s"(errnoInfo));
 
-  if (ioctl(fd, TUNSETIFF, &ifr) == -1)
-  {
+  scope (failure)
     close(fd);
-    throw new Exception("opentap failed: ioctl failed");
-  }
+
+  // Send config struct
+  if (ioctl(fd, TUNSETIFF, &ifr) == -1)
+    throw new Exception(format!"openTap failed: ioctl /dev/net/tun failed with %s"(errnoInfo));
 
   // Set non-blocking flag
-  int flags = fcntl(fd, F_GETFL, 0);
-  fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+  int flags;
+  if ((flags = fcntl(fd, F_GETFL, 0)) == -1)
+    throw new Exception(format!"openTap failed: getting flags failed with %s"(errnoInfo));
 
-  // TODO: put errno and strerror in the exception
+  if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+    throw new Exception(
+      format!"openTap failed: setting non-blocking flag failed with %s"(errnoInfo));
 
-  assert(fd >= 0, "opentap failed: unknown error");
+  enforce(fd >= 0, "openTap failed: unknown error");
 
+  // Pack fd into a File
   File file;
-  file.fdopen(fd, "rw");
+  try
+    file.fdopen(fd, "rw");
+  catch (ErrnoException)
+    throw new Exception(format!"openTap failed: packing fd into a File failed with %s"(errnoInfo));
+
   return file;
 }

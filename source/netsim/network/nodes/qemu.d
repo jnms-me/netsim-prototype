@@ -6,14 +6,19 @@ import netsim.network.node;
 
 import std.conv : to;
 import std.format : format;
-import std.process : Pid, spawnProcess;
+import std.process : pipeProcess, ProcessPipes, wait;
 import std.socket : InternetAddress, Socket, UdpSocket, wouldHaveBlocked;
 
+debug import std.stdio : writeln, writefln;
+
+/** 
+ * A Qemu virtual machine
+ */
 final class QemuNode : Node
 {
   private string name;
   private QemuSocketInterface[] interfaces;
-  private Pid pid;
+  private ProcessPipes processPipes;
 
   public this(string name, string image, string mac)
   {
@@ -24,11 +29,23 @@ final class QemuNode : Node
     args ~= ["-smp", "cores=2"];
     args ~= ["-m", "2048"];
     args ~= ["-enable-kvm"];
+    args ~= ["-monitor", "stdio"];
     args ~= ["-cdrom", image];
     args ~= ["-device", "e1000,netdev=net0,mac=" ~ mac];
     args ~= ["-netdev", interfaces[0].toNetdevArgString("net0")];
 
-    pid = spawnProcess([executable] ~ args);
+    processPipes = pipeProcess([executable] ~ args);
+  }
+
+  public ~this()
+  {
+    debug writeln("Destructing " ~ toString);
+
+    foreach (iface; interfaces)
+      destroy(iface);
+
+    processPipes.stdin.writeln("stop");
+    wait(processPipes.pid);
   }
 
   override public string getName() const
