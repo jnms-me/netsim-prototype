@@ -1,3 +1,4 @@
+/// Functions for creating and interacting with a linux tap device
 module netsim.network.nodes.docker_utils.tap;
 
 import netsim.network.nodes.docker_utils.tap_dpp;

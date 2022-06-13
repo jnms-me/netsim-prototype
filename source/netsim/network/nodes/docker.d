@@ -13,6 +13,7 @@ import std.format : format;
 import std.process : execute;
 import std.stdio : File;
 import std.string : fromStringz;
+import std.uuid : UUID;
 
 import core.stdc.errno : EAGAIN, errno, EWOULDBLOCK;
 import core.stdc.string : strerror;
@@ -27,14 +28,16 @@ enum image = "weibeld/ubuntu-networking";
  */
 final class DockerNode : Node
 {
+  private UUID id;
   private string name;
   private DockerInterface[] interfaces;
 
   private string containerId; // 64-char id
   private int containerPid; // The external pid of pid 1 in the container
 
-  public this(string name)
+  public this(UUID id, string name)
   {
+    this.id = id;
     this.name = name;
 
     // Pull image (should probably be done globally)
@@ -110,7 +113,7 @@ final class DockerNode : Node
     return name;
   }
 
-  override public NodeType getType() const
+  public static NodeType getType()
   {
     return NodeType.Docker;
   }

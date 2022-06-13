@@ -8,6 +8,7 @@ import std.conv : to;
 import std.format : format;
 import std.process : pipeProcess, ProcessPipes, wait;
 import std.socket : InternetAddress, Socket, UdpSocket, wouldHaveBlocked;
+import std.uuid : UUID;
 
 debug import std.stdio : writeln, writefln;
 
@@ -16,12 +17,16 @@ debug import std.stdio : writeln, writefln;
  */
 final class QemuNode : Node
 {
+  private UUID id;
   private string name;
   private QemuSocketInterface[] interfaces;
   private ProcessPipes processPipes;
 
-  public this(string name, string image, string mac)
+  public this(UUID id, string name, string image, string mac)
   {
+    this.id = id;
+    this.name = name;
+
     interfaces ~= new QemuSocketInterface("eth0", this);
 
     string executable = "/usr/bin/qemu-system-x86_64";
@@ -53,7 +58,7 @@ final class QemuNode : Node
     return name;
   }
 
-  override public NodeType getType() const
+  public static NodeType getType()
   {
     return NodeType.Qemu;
   }

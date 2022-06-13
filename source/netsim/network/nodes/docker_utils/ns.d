@@ -1,3 +1,4 @@
+// Functions for switching between linux network namespaces
 module netsim.network.nodes.docker_utils.ns;
 
 import netsim.utils.exception;
