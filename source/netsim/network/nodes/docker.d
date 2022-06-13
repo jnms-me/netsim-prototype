@@ -95,8 +95,8 @@ final class DockerNode : Node
       destroy(iface);
 
     auto stopResult = execute([
-      "docker", "stop", "--time=4", containerId
-    ]);
+        "docker", "stop", "--time=4", containerId
+      ]);
     if (stopResult.status != 0)
       throw new NodeException(this,
         format!"docker stop returned non-zero status code %d with output '%s'"(
@@ -196,7 +196,7 @@ private class DockerInterface : NetworkInterface
       {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
         {
-          // writefln("yielding generateOutgoing %s %s", getNode.toString, toString);
+          // debug writefln("yielding generateOutgoing %s %s", getNode.toString, toString);
           yield;
         }
         else

@@ -68,6 +68,7 @@ final class FiberManager
       foreach (RegisteredFiber fiber; fibers.filter!(f => f.type == type))
       {
         assert(fiber.state == Fiber.State.HOLD);
+        // Todo: catch and log errors. Right now it silently crashes, but logs when the program is terminated.
         fiber.call();
         assert(fiber.state == Fiber.State.HOLD);
       }

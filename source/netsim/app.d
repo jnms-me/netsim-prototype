@@ -33,12 +33,12 @@ void main()
     destroy(qemu1);
     return;
   }
+
   sigaction_t sa;
   sa.sa_handler = &cleanUp;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_RESTART;
   sigaction(SIGINT, &sa, null);
-
 
   writeln("Connecting nodes");
   NetworkInterface docker1_eth0 = docker1.getInterfaces()[0];
@@ -49,7 +49,6 @@ void main()
 
   executeShell(format!"docker exec %s ip link set dev eth0 up"(docker1.getContainerId));
   executeShell(format!"docker exec %s ip addr add 10.0.0.1/24 dev eth0"(docker1.getContainerId));
-
 
   writefln!"Docker 1 container id: %s"(docker1.getContainerId);
   writefln!"Docker 1 container pid: %d"(docker1.getContainerPid);
