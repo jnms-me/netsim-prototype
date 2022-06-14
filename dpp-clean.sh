@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+exit
 dpp_d_files=$(find source/ -name '*_dpp.d')
 dpp_d_tmp_files=$(find source/ -name '*_dpp.d.tmp')
 

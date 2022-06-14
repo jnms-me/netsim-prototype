@@ -7,6 +7,7 @@ import netsim.network.nodes.docker;
 import std.stdio;
 import std.process;
 import std.format;
+import std.uuid;
 
 import core.thread : Thread;
 import core.time : Duration;
@@ -19,10 +20,10 @@ QemuNode qemu1;
 
 void main()
 {
-  writeln("Spawning nodes");
-  docker1 = new DockerNode("docker 1");
+  writeln(randomUUID, "Spawning nodes");
+  docker1 = new DockerNode(randomUUID, "docker 1");
   // docker2 = new DockerNode("docker 2");
-  qemu1 = new QemuNode("qemu 1", "../img/alpine-extended-3.14.0-x86_64.iso", "AA:AA:AA:AA:AA:AA");
+  qemu1 = new QemuNode(randomUUID, "qemu 1", "../img/alpine-extended-3.14.0-x86_64.iso", "AA:AA:AA:AA:AA:AA");
 
   extern (C) void cleanUp(int sig)
   {

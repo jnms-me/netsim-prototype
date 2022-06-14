@@ -13,8 +13,12 @@ import std.string : toStringz;
 enum IFNAME_MAXSIZE = IFNAMSIZ - 1;
 
 void createTap(string ifname)
-in (ifname.length <= IFNAME_MAXSIZE)
+in (ifname.length > 0)
 {
+  enforce(ifname.length <= IFNAME_MAXSIZE,
+    format!"createTap failed: ifname is too long (limit: %d)"(IFNAME_MAXSIZE)
+  );
+
   auto result = execute([
     "ip", "tuntap", "add", ifname, "mode", "tap", "user", "root"
   ]);
@@ -26,8 +30,7 @@ in (ifname.length <= IFNAME_MAXSIZE)
 }
 
 File openTap(string ifname)
-in (ifname !is null)
-in (ifname.length <= IFNAME_MAXSIZE)
+in (ifname.length > 0)
 {
   enforce(ifname.length <= IFNAME_MAXSIZE,
     format!"openTap failed: ifname is too long (limit: %d)"(IFNAME_MAXSIZE)

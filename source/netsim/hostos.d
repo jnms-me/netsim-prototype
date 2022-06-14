@@ -20,7 +20,7 @@ final class LoopbackManager
   private ushort nextPort = 10_000;
 
   private this(string address, int subnet)
-  in (address !is null && address.length > 0)
+  in (address.length > 0)
   in (subnet > 0 && subnet <= 32)
   {
     this.address = address;

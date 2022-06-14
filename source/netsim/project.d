@@ -3,12 +3,13 @@ module netsim.project;
 import netsim.network.node;
 import netsim.network.nodes.docker;
 import netsim.network.nodes.qemu;
+import netsim.query;
 
 import std.exception : enforce;
 import std.format : format;
 import std.uuid : UUID;
 
-class Project
+final class Project : Queryable
 {
   private UUID id;
   private string name;
@@ -53,7 +54,8 @@ class Project
 
   void removeNode(UUID id)
   {
-    enforce(nodeExists(id), format!"removeNode failed: node with id %s does not exist in this project"(id));
+    enforce(nodeExists(id), format!"removeNode failed: node with id %s does not exist in this project"(
+        id));
     bool result = nodes.remove(id);
     assert(result);
   }
@@ -70,7 +72,8 @@ class Project
   Node getNode(UUID id)
   {
     Node* node = id in nodes;
-    enforce(node !is null, format!"getNode failed: node with id %s does not exist in this project"(id));
+    enforce(node !is null, format!"getNode failed: node with id %s does not exist in this project"(
+        id));
     return *node;
   }
 
@@ -80,16 +83,36 @@ class Project
   }
 
   ///
-  // Query
+  // Implementing Queryable
   ///
 
-  void handleQuery()
+  mixin resolveMixin!getNode;
+  // mixin queryMixin!(nodeExists, getNode, listNodeIds);
+  // mixin subscribeMixin!(...);
+  // mixin unsubscribeMixin!(...);
+
+  string query(QuerySegment segment)
+  in (segment.type == QuerySegmentType.Method)
+  {
+    return "";
+  }
+
+  void subscribe(QuerySegment segment, void delegate(string) hook)
+  in (segment.type == QuerySegmentType.Signal)
+  {
+  }
+
+  void unsubscribe(QuerySegment segment, void delegate(string) hook)
+  in (segment.type == QuerySegmentType.Signal)
   {
   }
 
   ///
   // wip
   ///
+
+  mixin Signal!(string) s1;
+  mixin Signal!(string) s2;
 
   void addNodeQuery(NodeType type)()
   {
