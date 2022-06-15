@@ -3,13 +3,13 @@ module netsim.project;
 import netsim.network.node;
 import netsim.network.nodes.docker;
 import netsim.network.nodes.qemu;
-import netsim.query;
+import netsim.graph;
 
 import std.exception : enforce;
 import std.format : format;
 import std.uuid : UUID;
 
-final class Project : Queryable
+final class Project : GraphNode
 {
   private UUID id;
   private string name;
@@ -83,27 +83,19 @@ final class Project : Queryable
   }
 
   ///
-  // Implementing Queryable
+  // Implementing GraphNode
   ///
 
   mixin resolveMixin!getNode;
-  // mixin queryMixin!(nodeExists, getNode, listNodeIds);
+  mixin queryMixin!(nodeExists, getNode, listNodeIds);
   // mixin subscribeMixin!(...);
   // mixin unsubscribeMixin!(...);
 
-  string query(QuerySegment segment)
-  in (segment.type == QuerySegmentType.Method)
-  {
-    return "";
-  }
-
-  void subscribe(QuerySegment segment, void delegate(string) hook)
-  in (segment.type == QuerySegmentType.Signal)
+  void subscribe(GraphPathSegment segment, void delegate(string) hook)
   {
   }
 
-  void unsubscribe(QuerySegment segment, void delegate(string) hook)
-  in (segment.type == QuerySegmentType.Signal)
+  void unsubscribe(GraphPathSegment segment, void delegate(string) hook)
   {
   }
 
