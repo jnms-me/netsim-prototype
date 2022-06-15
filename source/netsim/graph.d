@@ -1,33 +1,17 @@
 module netsim.graph;
 
-import painlessjson;
-
-/*
-  Todo: renaming, query has a lot of different meanings
-
-  Query refers to:
-    - One of the 2 types of requests
-      - Keep
-    - The function chain in each request
-      -> ...FunctionChain consisting of ...Function's ? ...FunctionChainSegment's?
-      -> CallChain?
-      -> ...Path?
-      -> GraphPath
-    - indirectly to GraphNode
-      -> ...ble
-      -> GraphNode
-*/
-
-/*
-  Rename
-  add request mockup
-  add request and GraphPath parsing
-  add version(GenerateGraphSpec)
-*/
+import painlessjson : toJSON;
 
 // Full import needed
 // (fixes error unknown identifier _d_toObject or rt_detachDisposeEvent)
 public import std.signals;
+
+/*
+  TODO:
+    - add request mockup
+    - add request and GraphPath parsing
+    - add version(GenerateGraphSpec)
+*/
 
 ///
 // Parsed request structure
@@ -86,6 +70,7 @@ struct GraphPathSegment
 
 Request parseRequest(string s)
 {
+  // TODO
   return Request();
 }
 
@@ -93,6 +78,12 @@ Request parseRequest(string s)
 // Graph nodes
 ///
 
+/** 
+ * Every class that is part of netsim graph needs to implement this interface.
+ * 
+ * When executing a Request, resolve will be called on the GraphNodes with all but the last GraphPathSegment.
+ * On the GraphNode at the end of the path, one of the other 3 methods will be called based on the RequestType.
+ */
 interface GraphNode
 {
   /** 
