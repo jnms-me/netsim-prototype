@@ -1,3 +1,7 @@
+/**
+ * Functionality for parsing and traveling the netsim graph.
+ * Also contains the GraphNode interface and helper mixins for implementing nodes.
+ */
 module netsim.graph;
 
 // Full import needed
@@ -8,13 +12,6 @@ import std.conv : to;
 import std.exception : enforce;
 import std.format : format;
 import std.uni : isAlpha, isAlphaNum;
-
-/*
-  TODO:
-    - add request mockup
-    - add request and GraphPath parsing
-    - add version(GenerateGraphSpec)
-*/
 
 ///
 // Parsed request structure
@@ -74,11 +71,12 @@ struct GraphPathSegment
 import pegged.grammar;
 
 mixin(grammar(`
-PeggedRequest:
+RequestGrammar:
     Request          <- RequestType ' ' GraphPath :eoi
     RequestType      <- "query" / "subscribe" / "unsubscribe"
-    GraphPath        <- GraphPathSegment ('.' GraphPathSegment)*
+    GraphPath        <- GraphPathSegment ('.' GraphPathSegment)* ('.' SignalName)?
     GraphPathSegment <- Name Args
+    SignalName       <- Name
     Name             <- identifier
     Args             <- "()" / '(' Arg (',' Arg)* ')'
     Arg              <- String / Char / Int / Float / Bool
@@ -119,7 +117,7 @@ PeggedRequest:
 
 Request parseRequest(string reqStr)
 {
-  ParseTree parseTree = PeggedRequest(reqStr);
+  ParseTree parseTree = RequestGrammar(reqStr);
   if (!parseTree.successful)
   {
     throw new Exception("Error parsing: \"" ~ parseTree.failMsg ~ "\"");
@@ -131,17 +129,23 @@ Request parseRequest(string reqStr)
   {
     switch (subtree.name)
     {
-    case "Request.RequestType":
+    case "RequestGrammmar.RequestType":
       request.type = subtree.matches[0].to!RequestType;
       break;
-    case "Request.GraphPathSegment":
+    case "RequestGrammar.GraphPathSegment":
       request.path.segments ~= GraphPathSegment();
       break;
-    case "Request.Name":
+    case "RequestGrammar.SignalName":
+      enforce(request.type == RequestType.Subscribe || request.type == RequestType.Unsubscribe,
+        "Error parsing: the GraphPath resolves to a signal but the RequestType isn't (un)subscribe"
+      );
+      request.path.segments ~= GraphPathSegment();
+      break;
+    case "RequestGrammar.Name":
       request.path.segments[$ - 1].name = subtree.matches[0];
       break;
-    case "Request.Arg":
-      assert(subtree.matches.length == 1);
+    case "RequestGrammar.Arg":
+      assert(subtree.matches.length == 1); // checks if <~ was used on all types
       request.path.segments[$ - 1].args ~= subtree.matches[0];
       break;
     default:
@@ -152,7 +156,7 @@ Request parseRequest(string reqStr)
       processSubtree(child);
   }
 
-  // The root is the first grammar line: PeggedRequest.Request
+  // The root is the first grammar line: RequestGrammar.Request
   processSubtree(parseTree);
 
   return request;
@@ -161,23 +165,23 @@ Request parseRequest(string reqStr)
 @("Test parseRequest")
 unittest
 {
-  Request req = parseRequest("query project(\"some-uuid\").getSomeNode().doSomething(true, 'a', 1)");
+  Request req = parseRequest("query project(\"some-uuid\").getSomeNode().doSomething(true,'a',1)");
 
   assert(req.type == RequestType.Query);
-  assert(req.path.length == 3);
+  assert(req.path.segments.length == 3);
 
   assert(req.path.segments[0].name == "project");
   assert(req.path.segments[0].args.length == 1);
   assert(req.path.segments[0].args[0] == "\"some-uuid\"");
 
   assert(req.path.segments[1].name == "getSomeNode");
-  assert(req.path.segments[1].path.length == 0);
+  assert(req.path.segments[1].args.length == 0);
 
-  assert(req.path.segments[0].name == "doSomething");
-  assert(req.path.segments[0].args.length == 3);
-  assert(req.path.segments[0].args[0] == "true");
-  assert(req.path.segments[0].args[1] == "'a'");
-  assert(req.path.segments[0].args[2] == "1");
+  assert(req.path.segments[2].name == "doSomething");
+  assert(req.path.segments[2].args.length == 3);
+  assert(req.path.segments[2].args[0] == "true");
+  assert(req.path.segments[2].args[1] == "'a'");
+  assert(req.path.segments[2].args[2] == "1");
 }
 
 ///
@@ -391,6 +395,91 @@ unittest
 }
 
 ///
+// Graph traveling
+///
+
+/** 
+ * Travels the graph with a valid request string.
+ * Returns: A json string
+ */
+string handleRequest(string reqStr, GraphNode root)
+{
+  try
+  {
+    Request req = parseRequest(reqStr);
+    assert(req.path.segments.length >= 1);
+
+    GraphNode curr = root;
+
+    foreach (i, segment; req.path.segments)
+    {
+      bool lastSegment = (i + 1 == req.path.segments.length);
+
+      if (!lastSegment)
+        curr = curr.resolve(segment);
+      else
+      {
+        final switch (req.type)
+        {
+        case RequestType.Query:
+          return curr.query(segment);
+        case RequestType.Subscribe:
+          return ""; //curr.subscribe(segment);
+        case RequestType.Unsubscribe:
+          return ""; //curr.unsubscribe(segment);
+        }
+      }
+    }
+  }
+  catch (Exception e)
+  {
+    return format!"{\"error\": \"%s\"}"(e);
+  }
+  assert(false);
+}
+
+class NetsimRoot
+{
+}
+
+class Netsim
+{
+  private NetsimRoot root;
+}
+
+@("Test handleRequest accepting root node")
+unittest
+{
+  final class RootNode : GraphNode
+  {
+    auto foo()
+    {
+      return [0,1,2];
+    }
+
+    mixin queryMixin!foo;
+
+    GraphNode resolve(GraphPathSegment segment)
+    {
+      return null;
+    }
+
+    void subscribe(GraphPathSegment segment, void delegate(string) hook)
+    {
+    }
+
+    void unsubscribe(GraphPathSegment segment, void delegate(string) hook)
+    {
+    }
+  }
+
+  RootNode root = new RootNode;
+  string s = handleRequest("query foo()", root);
+  debug { import std.stdio : writeln; try { writeln(s); } catch (Exception) {} }
+  assert(s == "[0,1,2]");
+}
+
+///
 // temp
 ///
 
@@ -451,158 +540,8 @@ unittest
 */
 
 /*
-string handleRequest(string reqStr, GraphNode root)
-{
-  Request req = parseRequest(reqStr);
-  assert(req.path.segments.length >= 1);
-
-  GraphNode curr = root;
-
-  foreach (i, segment; req.path.segments)
-  {
-    bool lastSegment = (i + 1 == req.path.segments.length);
-
-    if (!lastSegment)
-      curr = curr.resolve(segment);
-    else
-    {
-      final switch (req.type)
-      {
-      case RequestType.Query:
-        return curr.query(segment);
-      case RequestType.Subscribe:
-        return ""; //curr.subscribe(segment);
-      case RequestType.Unsubscribe:
-        return ""; //curr.unsubscribe(segment);
-      }
-    }
-  }
-  assert(false);
-}
-
-class NetsimRoot
-{
-}
-
-class Netsim
-{
-  private NetsimRoot root;
-}
-*/
-
-/*
-Request parseRequest(string reqStr)
-{
-  import std.conv : to;
-  import std.exception : enforce;
-  import std.format : formattedRead;
-  import std.string : capitalize, chomp, split, strip;
-
-  reqStr = reqStr.chomp.strip;
-
-  // TODO: verify with regex
-
-  // Split line into RequestType and GraphPath
-  string firstPart;
-  string secondPart;
-  reqStr.formattedRead!"%s %s"(firstPart, secondPart);
-  firstPart = firstPart.strip;
-  secondPart = secondPart.strip;
-
-  enforce(firstPart.length > 0 && secondPart.length > 0, "Bad request");
-
-  // Build request struct
-  Request req;
-
-  req.type = firstPart.capitalize.to!RequestType;
-  req.path = parseGraphPath(secondPart);
-
-  return req;
-}
-
-GraphPath parseGraphPath(string str)
-{
-  string[] calls;
-
-  // a("aze)zae").a()
-
-  {
-    int callStartIndex = 0;
-    bool withinString = false;
-    bool withinChar = false;
-    bool withinArgs = false;
-
-    for (int i = 0; i < str.length; i++)
-    {
-      const char c = str[i];
-
-      if (i + 1 == str.length)
-      {
-        enforce(c == ")" && withinArgs && !withinChar && !withinString,
-          "parseGraphPath error: unterminated GraphPath string"
-        );
-      }
-
-      // %s(%s)
-      if (!withinArgs)
-      {
-        if (c == '(')
-        {
-          enforce(i > callStartIndex,
-            format!"parseGraphPath error: missing method name for call with index %d"(calls.length)
-          );
-          withinArgs = true;
-        }
-      }
-      else
-      {
-        // End of a GraphSegment
-        if (c == ')' && !withinString && !withinChar)
-        {
-          calls ~= str[callStartIndex .. i + 1];
-
-          if (i + 1 < str.length)
-          {
-            enforce(str[i + 1] == '.');
-            callStartIndex = i + 2;
-            withinArgs = withinChar = false;
-          }
-        }
-        else if (c == '"')
-          withinString = !withinString;
-        else if (c == '\'')
-          withinChar = !withinChar;
-      }
-    }
-  }
-
-  foreach (string call; calls)
-  {
-    string name;
-    string argsStr;
-
-    segmentStr.formattedRead!"%s(%s)"(name, argsStr);
-
-    enforce(name.length > 0);
-    enforce(name[0].isAlpha);
-    enforce(name.all!isAlphaNum);
-  }
-
-  // // Ensure that the method name doesn't contain invalid characters
-  // if (i == 0)
-  //   enforce(c.isAlpha);
-  // enforce(c.isAlphaNum);
-
-  GraphPathSegment segment;
-
-  segment.name = name;
-
-  foreach (arg; argsStr.split(","))
-    segment.args ~= arg;
-
-  path.segments ~= segment;
-
-  enforce(path.segments.length >= 1);
-
-}
+  TODO:
+    - add request mockup
+    - add request and GraphPath parsing
+    - add version(GenerateGraphSpec)
 */
