@@ -1,20 +1,18 @@
 {
-	"authors": [
-		"Jonas Meeuws"
-	],
-	"copyright": "Copyright © 2022, Jonas Meeuws",
-	"dependencies": {
-		"painlessjson": "~>1.4.0"
-	},
-	"description": "Netsim server prototype",
-	"license": "proprietary",
-	"mainSourceFile": "source/netsim/app.d",
-	"name": "netsim-prototype-server",
-	"postBuildCommands": [
-		"./dpp-clean.sh"
-	],
-	"preGenerateCommands": [
-		"./dpp-build.sh"
-	],
-	"targetType": "executable"
+    "name": "netsim-prototype-server",
+    "description": "Netsim server prototype",
+    "license": "proprietary",
+    "authors": [
+        "Jonas Meeuws"
+    ],
+    "copyright": "Copyright © 2022, Jonas Meeuws",
+    "targetType": "executable",
+    "dependencies": {
+        "pegged": "~>0.4.6",
+        "painlessjson": "~>1.4.0"
+    },
+    "preGenerateCommands": [
+        "./dpp_build.d"
+    ],
+    "mainSourceFile": "source/netsim/app.d"
 }

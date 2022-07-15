@@ -1,10 +1,13 @@
 module netsim.graph;
 
-import painlessjson : toJSON;
-
 // Full import needed
 // (fixes error unknown identifier _d_toObject or rt_detachDisposeEvent)
 public import std.signals;
+
+import std.conv : to;
+import std.exception : enforce;
+import std.format : format;
+import std.uni : isAlpha, isAlphaNum;
 
 /*
   TODO:
@@ -68,10 +71,113 @@ struct GraphPathSegment
 // Parsing
 ///
 
-Request parseRequest(string s)
+import pegged.grammar;
+
+mixin(grammar(`
+PeggedRequest:
+    Request          <- RequestType ' ' GraphPath :eoi
+    RequestType      <- "query" / "subscribe" / "unsubscribe"
+    GraphPath        <- GraphPathSegment ('.' GraphPathSegment)*
+    GraphPathSegment <- Name Args
+    Name             <- identifier
+    Args             <- "()" / '(' Arg (',' Arg)* ')'
+    Arg              <- String / Char / Int / Float / Bool
+
+    String <~ doublequote (!doublequote Character)* doublequote
+    Char   <~ quote (!quote Character) quote
+    Int    <~ Integer / Hexadecimal / Binary
+    Float  <~ Floating / Scientific
+    Bool   <~ Boolean
+
+    Character <~ . / EscapeSequence
+
+    EscapeSequence <~ backslash (
+      doublequote
+      / quote
+      / backslash
+      / [bfnrt]
+      / [0-2][0-7][0-7]
+      / [0-7][0-7]?
+      / 'x' Hex Hex
+      / 'u' Hex Hex Hex Hex
+      / 'U' Hex Hex Hex Hex Hex Hex Hex Hex
+    )
+
+    Scientific <~ Floating ([eE] Integer)?
+    Floating   <~ Integer ('.' Unsigned)?
+
+    Unsigned <~ [0-9]+
+    Integer  <~ Sign? Unsigned
+    Sign     <- [-+]
+
+    Binary      <~ "0b" [01] [01_]*
+    Hexadecimal <~ "0x" Hex+
+    Hex <- [0-9a-fA-F]
+
+    Boolean <- "true" / "false"
+`));
+
+Request parseRequest(string reqStr)
 {
-  // TODO
-  return Request();
+  ParseTree parseTree = PeggedRequest(reqStr);
+  if (!parseTree.successful)
+  {
+    throw new Exception("Error parsing: \"" ~ parseTree.failMsg ~ "\"");
+  }
+
+  Request request;
+
+  void processSubtree(ParseTree subtree)
+  {
+    switch (subtree.name)
+    {
+    case "Request.RequestType":
+      request.type = subtree.matches[0].to!RequestType;
+      break;
+    case "Request.GraphPathSegment":
+      request.path.segments ~= GraphPathSegment();
+      break;
+    case "Request.Name":
+      request.path.segments[$ - 1].name = subtree.matches[0];
+      break;
+    case "Request.Arg":
+      assert(subtree.matches.length == 1);
+      request.path.segments[$ - 1].args ~= subtree.matches[0];
+      break;
+    default:
+      break;
+    }
+
+    foreach (child; subtree.children)
+      processSubtree(child);
+  }
+
+  // The root is the first grammar line: PeggedRequest.Request
+  processSubtree(parseTree);
+
+  return request;
+}
+
+@("Test parseRequest")
+unittest
+{
+  Request req = parseRequest("query project(\"some-uuid\").getSomeNode().doSomething(true, 'a', 1)");
+
+  assert(req.type == RequestType.Query);
+  assert(req.path.length == 3);
+
+  assert(req.path.segments[0].name == "project");
+  assert(req.path.segments[0].args.length == 1);
+  assert(req.path.segments[0].args[0] == "\"some-uuid\"");
+
+  assert(req.path.segments[1].name == "getSomeNode");
+  assert(req.path.segments[1].path.length == 0);
+
+  assert(req.path.segments[0].name == "doSomething");
+  assert(req.path.segments[0].args.length == 3);
+  assert(req.path.segments[0].args[0] == "true");
+  assert(req.path.segments[0].args[1] == "'a'");
+  assert(req.path.segments[0].args[2] == "1");
 }
 
 ///
@@ -79,7 +185,7 @@ Request parseRequest(string s)
 ///
 
 /** 
- * Every class that is part of netsim graph needs to implement this interface.
+ * Every class that is part of the netsim graph needs to implement this interface.
  * 
  * When executing a Request, resolve will be called on the GraphNodes with all but the last GraphPathSegment.
  * On the GraphNode at the end of the path, one of the other 3 methods will be called based on the RequestType.
@@ -133,7 +239,7 @@ enum ResolveOrQueryEnum : ubyte
   Query
 }
 
-/// Shared base template for resolveHelper and queryHelper
+/// Shared base template for resolveMixin and queryMixin
 template baseResolveQueryMixin(ResolveOrQueryEnum ResolveOrQuery, Methods...)
 {
   import netsim.graph : GraphNode, GraphPathSegment, ResolveOrQueryEnum;
@@ -257,9 +363,9 @@ template queryMixin(Methods...)
   }
 }
 
+@("Test resolveMixin")
 unittest
 {
-  // test resolveMixin
   bool success = false;
 
   final class A
@@ -342,4 +448,161 @@ unittest
 
   no documentation inside protocol
   maybe inside errors
+*/
+
+/*
+string handleRequest(string reqStr, GraphNode root)
+{
+  Request req = parseRequest(reqStr);
+  assert(req.path.segments.length >= 1);
+
+  GraphNode curr = root;
+
+  foreach (i, segment; req.path.segments)
+  {
+    bool lastSegment = (i + 1 == req.path.segments.length);
+
+    if (!lastSegment)
+      curr = curr.resolve(segment);
+    else
+    {
+      final switch (req.type)
+      {
+      case RequestType.Query:
+        return curr.query(segment);
+      case RequestType.Subscribe:
+        return ""; //curr.subscribe(segment);
+      case RequestType.Unsubscribe:
+        return ""; //curr.unsubscribe(segment);
+      }
+    }
+  }
+  assert(false);
+}
+
+class NetsimRoot
+{
+}
+
+class Netsim
+{
+  private NetsimRoot root;
+}
+*/
+
+/*
+Request parseRequest(string reqStr)
+{
+  import std.conv : to;
+  import std.exception : enforce;
+  import std.format : formattedRead;
+  import std.string : capitalize, chomp, split, strip;
+
+  reqStr = reqStr.chomp.strip;
+
+  // TODO: verify with regex
+
+  // Split line into RequestType and GraphPath
+  string firstPart;
+  string secondPart;
+  reqStr.formattedRead!"%s %s"(firstPart, secondPart);
+  firstPart = firstPart.strip;
+  secondPart = secondPart.strip;
+
+  enforce(firstPart.length > 0 && secondPart.length > 0, "Bad request");
+
+  // Build request struct
+  Request req;
+
+  req.type = firstPart.capitalize.to!RequestType;
+  req.path = parseGraphPath(secondPart);
+
+  return req;
+}
+
+GraphPath parseGraphPath(string str)
+{
+  string[] calls;
+
+  // a("aze)zae").a()
+
+  {
+    int callStartIndex = 0;
+    bool withinString = false;
+    bool withinChar = false;
+    bool withinArgs = false;
+
+    for (int i = 0; i < str.length; i++)
+    {
+      const char c = str[i];
+
+      if (i + 1 == str.length)
+      {
+        enforce(c == ")" && withinArgs && !withinChar && !withinString,
+          "parseGraphPath error: unterminated GraphPath string"
+        );
+      }
+
+      // %s(%s)
+      if (!withinArgs)
+      {
+        if (c == '(')
+        {
+          enforce(i > callStartIndex,
+            format!"parseGraphPath error: missing method name for call with index %d"(calls.length)
+          );
+          withinArgs = true;
+        }
+      }
+      else
+      {
+        // End of a GraphSegment
+        if (c == ')' && !withinString && !withinChar)
+        {
+          calls ~= str[callStartIndex .. i + 1];
+
+          if (i + 1 < str.length)
+          {
+            enforce(str[i + 1] == '.');
+            callStartIndex = i + 2;
+            withinArgs = withinChar = false;
+          }
+        }
+        else if (c == '"')
+          withinString = !withinString;
+        else if (c == '\'')
+          withinChar = !withinChar;
+      }
+    }
+  }
+
+  foreach (string call; calls)
+  {
+    string name;
+    string argsStr;
+
+    segmentStr.formattedRead!"%s(%s)"(name, argsStr);
+
+    enforce(name.length > 0);
+    enforce(name[0].isAlpha);
+    enforce(name.all!isAlphaNum);
+  }
+
+  // // Ensure that the method name doesn't contain invalid characters
+  // if (i == 0)
+  //   enforce(c.isAlpha);
+  // enforce(c.isAlphaNum);
+
+  GraphPathSegment segment;
+
+  segment.name = name;
+
+  foreach (arg; argsStr.split(","))
+    segment.args ~= arg;
+
+  path.segments ~= segment;
+
+  enforce(path.segments.length >= 1);
+
+}
 */

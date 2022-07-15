@@ -3,6 +3,7 @@
 	"versions": {
 		"dunit": "1.0.16",
 		"painlessjson": "1.4.0",
-		"painlesstraits": "0.3.0"
+		"painlesstraits": "0.3.0",
+		"pegged": "0.4.6"
 	}
 }
