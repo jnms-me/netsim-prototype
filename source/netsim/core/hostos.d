@@ -1,4 +1,4 @@
-module netsim.hostos;
+module netsim.core.hostos;
 
 final class LoopbackManager
 {

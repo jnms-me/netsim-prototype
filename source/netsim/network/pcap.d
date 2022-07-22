@@ -1,4 +1,4 @@
-module netsim.pcap;
+module netsim.network.pcap;
 
 import std.datetime.systime;
 import std.datetime.timezone : UTC;

@@ -1,8 +1,8 @@
 module netsim.network.iface;
 
-public import netsim.fiber : yield;
+public import netsim.core.fiber : yield;
 
-import netsim.fiber;
+import netsim.core.fiber;
 import netsim.network.node;
 
 import std.exception : enforce;

@@ -12,7 +12,7 @@
 	},
 	"description": "Netsim server prototype",
 	"license": "proprietary",
-	"mainSourceFile": "source/netsim/app.d",
+	"mainSourceFile": "source/netsim/main.d",
 	"name": "netsim-prototype-server",
 	"preGenerateCommands": [
 		"./dpp_build.d"

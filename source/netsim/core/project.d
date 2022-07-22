@@ -1,9 +1,9 @@
-module netsim.project;
+module netsim.core.project;
 
+import netsim.graph.graph;
 import netsim.network.node;
 import netsim.network.nodes.docker;
 import netsim.network.nodes.qemu;
-import netsim.graph;
 
 import std.exception : enforce;
 import std.format : format;

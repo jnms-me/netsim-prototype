@@ -3,10 +3,10 @@ module netsim.network.nodes.docker;
 import netsim.network.nodes.docker_utils.ns;
 import netsim.network.nodes.docker_utils.tap;
 
+import netsim.graph.graph;
 import netsim.network.iface;
 import netsim.network.node;
 import netsim.utils.exception;
-import netsim.graph;
 
 import std.exception : enforce;
 import std.format : format, formattedRead;

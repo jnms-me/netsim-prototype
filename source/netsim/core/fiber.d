@@ -1,4 +1,4 @@
-module netsim.fiber;
+module netsim.core.fiber;
 
 public import core.thread : Fiber;
 

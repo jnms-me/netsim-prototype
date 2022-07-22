@@ -1,8 +1,8 @@
-module netsim.netsim;
+module netsim.core.netsim;
 
-import netsim.graph;
-import netsim.project;
-import netsim.apiserver;
+import netsim.core.project;
+import netsim.graph.apiserver;
+import netsim.graph.graph;
 
 import std.exception : enforce;
 import std.format : format;

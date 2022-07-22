@@ -1,6 +1,6 @@
 module netsim.network.nodes.qemu;
 
-import netsim.hostos : LoopbackManager;
+import netsim.core.hostos : LoopbackManager;
 import netsim.network.iface;
 import netsim.network.node;
 

@@ -1,12 +1,12 @@
-module netsim.apiserver;
+module netsim.graph.apiserver;
 
-import netsim.graph;
+import netsim.graph.graph;
+
+import std.stdio : writeln;
 
 import vibe.core.core : runEventLoopOnce;
 import vibe.core.net : listenTCP, TCPConnection, TCPConnectionDelegate;
 import vibe.stream.operations : readUntil;
-
-import std.stdio : writeln;
 
 class GraphApiServer
 {

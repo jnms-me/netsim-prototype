@@ -2,7 +2,7 @@
  * Functionality for parsing and traveling the netsim graph.
  * Also contains the GraphNode interface and helper mixins for implementing nodes.
  */
-module netsim.graph;
+module netsim.graph.graph;
 
 // Full import needed
 // (fixes error unknown identifier _d_toObject or rt_detachDisposeEvent)
@@ -12,6 +12,8 @@ import std.conv : to;
 import std.exception : enforce;
 import std.format : format;
 import std.uni : isAlpha, isAlphaNum;
+
+import pegged.grammar;
 
 ///
 // Parsed request structure
@@ -67,8 +69,6 @@ struct GraphPathSegment
 ///
 // Parsing
 ///
-
-import pegged.grammar;
 
 mixin(grammar(`
 RequestGrammar:
@@ -246,7 +246,7 @@ enum ResolveOrQueryEnum : ubyte
 /// Shared base template for resolveMixin and queryMixin
 template baseResolveQueryMixin(ResolveOrQueryEnum ResolveOrQuery, Methods...)
 {
-  import netsim.graph : GraphNode, GraphPathSegment, ResolveOrQueryEnum;
+  import netsim.graph.graph : GraphNode, GraphPathSegment, ResolveOrQueryEnum;
 
   import std.algorithm : map;
   import std.conv : to;
@@ -318,11 +318,11 @@ template baseResolveQueryMixin(ResolveOrQueryEnum ResolveOrQuery, Methods...)
 template resolveMixin(Methods...)
 if (Methods.length > 0)
 {
-  import netsim.graph : GraphNode, GraphPathSegment;
+  import netsim.graph.graph : GraphNode, GraphPathSegment;
 
   GraphNode resolve(GraphPathSegment segment)
   {
-    import netsim.graph : baseResolveQueryMixin, ResolveOrQueryEnum;
+    import netsim.graph.graph : baseResolveQueryMixin, ResolveOrQueryEnum;
     import std.traits : isFinalFunction, ReturnType;
 
     static foreach (Method; Methods)
@@ -347,12 +347,12 @@ if (Methods.length > 0)
 template queryMixin(Methods...)
 if (Methods.length > 0)
 {
-  import netsim.graph : GraphPathSegment;
+  import netsim.graph.graph : GraphPathSegment;
 
   string query(GraphPathSegment segment)
   in (segment.args.length == 0)
   {
-    import netsim.graph : baseResolveQueryMixin, ResolveOrQueryEnum;
+    import netsim.graph.graph : baseResolveQueryMixin, ResolveOrQueryEnum;
     import painlessjson : toJSON;
     import std.traits : isFinalFunction, ReturnType;
 
