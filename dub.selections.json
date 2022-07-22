@@ -2,9 +2,16 @@
 	"fileVersion": 1,
 	"versions": {
 		"dunit": "1.0.16",
+		"eventcore": "0.9.20",
+		"libasync": "0.8.6",
+		"memutils": "1.0.4",
 		"painlessjson": "1.4.0",
 		"painlesstraits": "0.3.0",
 		"pegged": "0.4.6",
-		"silly": "1.1.1"
+		"silly": "1.1.1",
+		"stdx-allocator": "2.77.5",
+		"taggedalgebraic": "0.11.22",
+		"vibe-core": "1.22.4",
+		"vibe-d": "0.9.5"
 	}
 }

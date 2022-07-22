@@ -64,6 +64,11 @@ final class Project : GraphNode
   // Accessing nodes
   ///
 
+  Node[UUID] getNodes()
+  {
+    return nodes;
+  }
+
   bool nodeExists(UUID id)
   {
     return (id in nodes) !is null;
@@ -86,8 +91,8 @@ final class Project : GraphNode
   // Implementing GraphNode
   ///
 
-  mixin resolveMixin!getNode;
-  mixin queryMixin!(nodeExists, getNode, listNodeIds);
+  mixin resolveMixin!(getNode);
+  mixin queryMixin!(getNodes, nodeExists, getNode, listNodeIds);
   // mixin subscribeMixin!(...);
   // mixin unsubscribeMixin!(...);
 

@@ -72,47 +72,47 @@ import pegged.grammar;
 
 mixin(grammar(`
 RequestGrammar:
-    Request          <- RequestType ' ' GraphPath :eoi
-    RequestType      <- "query" / "subscribe" / "unsubscribe"
-    GraphPath        <- GraphPathSegment ('.' GraphPathSegment)* ('.' SignalName)?
-    GraphPathSegment <- Name Args
-    SignalName       <- Name
-    Name             <- identifier
-    Args             <- "()" / '(' Arg (',' Arg)* ')'
-    Arg              <- String / Char / Int / Float / Bool
+  Request          <- RequestType ' ' GraphPath :eoi
+  RequestType      <- "query" / "subscribe" / "unsubscribe"
+  GraphPath        <- GraphPathSegment ('.' GraphPathSegment)* ('.' SignalName)?
+  GraphPathSegment <- Name Args
+  SignalName       <- Name
+  Name             <- identifier
+  Args             <- "()" / '(' Arg (',' Arg)* ')'
+  Arg              <- String / Char / Int / Float / Bool
 
-    String <~ doublequote (!doublequote Character)* doublequote
-    Char   <~ quote (!quote Character) quote
-    Int    <~ Integer / Hexadecimal / Binary
-    Float  <~ Floating / Scientific
-    Bool   <~ Boolean
+  String <~ doublequote (!doublequote Character)* doublequote
+  Char   <~ quote (!quote Character) quote
+  Int    <~ Integer / Hexadecimal / Binary
+  Float  <~ Floating / Scientific
+  Bool   <~ Boolean
 
-    Character <~ . / EscapeSequence
+  Character <~ . / EscapeSequence
 
-    EscapeSequence <~ backslash (
-      doublequote
-      / quote
-      / backslash
-      / [bfnrt]
-      / [0-2][0-7][0-7]
-      / [0-7][0-7]?
-      / 'x' Hex Hex
-      / 'u' Hex Hex Hex Hex
-      / 'U' Hex Hex Hex Hex Hex Hex Hex Hex
-    )
+  EscapeSequence <~ backslash (
+    doublequote
+    / quote
+    / backslash
+    / [bfnrt]
+    / [0-2][0-7][0-7]
+    / [0-7][0-7]?
+    / 'x' Hex Hex
+    / 'u' Hex Hex Hex Hex
+    / 'U' Hex Hex Hex Hex Hex Hex Hex Hex
+  )
 
-    Scientific <~ Floating ([eE] Integer)?
-    Floating   <~ Integer ('.' Unsigned)?
+  Scientific <~ Floating ([eE] Integer)?
+  Floating   <~ Integer ('.' Unsigned)?
 
-    Unsigned <~ [0-9]+
-    Integer  <~ Sign? Unsigned
-    Sign     <- [-+]
+  Unsigned <~ [0-9]+
+  Integer  <~ Sign? Unsigned
+  Sign     <- [-+]
 
-    Binary      <~ "0b" [01] [01_]*
-    Hexadecimal <~ "0x" Hex+
-    Hex <- [0-9a-fA-F]
+  Binary      <~ "0b" [01] [01_]*
+  Hexadecimal <~ "0x" Hex+
+  Hex <- [0-9a-fA-F]
 
-    Boolean <- "true" / "false"
+  Boolean <- "true" / "false"
 `));
 
 Request parseRequest(string reqStr)
@@ -220,7 +220,7 @@ interface GraphNode
    *   segment = The last segment of a Query, with type = Signal.
    *   hook = A delegate referring to a class method with signature "void method(string)".
    */
-  void subscribe(GraphPathSegment segment, void delegate(string) hook);
+  // void subscribe(GraphPathSegment segment, void delegate(string) hook);
 
   /**
    * Removes a hook from the call list of the signal referred to by `segment`.
@@ -229,7 +229,7 @@ interface GraphNode
    *   segment = The last segment of a Query, with type = Signal.
    *   hook = A delegate referring to a class method with signature "void method(string)".
    */
-  void unsubscribe(GraphPathSegment segment, void delegate(string) hook);
+  // void unsubscribe(GraphPathSegment segment, void delegate(string) hook);
 }
 
 ///
@@ -316,6 +316,7 @@ template baseResolveQueryMixin(ResolveOrQueryEnum ResolveOrQuery, Methods...)
  *   Methods: List of final methods of the current GraphNode class that return a GraphNode child.
  */
 template resolveMixin(Methods...)
+if (Methods.length > 0)
 {
   import netsim.graph : GraphNode, GraphPathSegment;
 
@@ -344,6 +345,7 @@ template resolveMixin(Methods...)
  *   Methods: List of final methods of the current class that return a string (usually json).
  */
 template queryMixin(Methods...)
+if (Methods.length > 0)
 {
   import netsim.graph : GraphPathSegment;
 
@@ -364,6 +366,22 @@ template queryMixin(Methods...)
     }
     mixin baseResolveQueryMixin!(ResolveOrQueryEnum.Query, Methods);
     return base(segment);
+  }
+}
+
+template emptyResolveMixin()
+{
+  GraphNode resolve(GraphPathSegment segment)
+  {
+    assert(false, "This GraphNode has no resolve methods");
+  }
+}
+
+template emptyQueryMixin()
+{
+  string query(GraphPathSegment segment)
+  {
+    assert(false, "This GraphNode has no query methods");
   }
 }
 
@@ -438,15 +456,6 @@ string handleRequest(string reqStr, GraphNode root)
   assert(false);
 }
 
-class NetsimRoot
-{
-}
-
-class Netsim
-{
-  private NetsimRoot root;
-}
-
 @("Test handleRequest accepting root node")
 unittest
 {
@@ -454,7 +463,7 @@ unittest
   {
     auto foo()
     {
-      return [0,1,2];
+      return [0, 1, 2];
     }
 
     mixin queryMixin!foo;
@@ -475,7 +484,6 @@ unittest
 
   RootNode root = new RootNode;
   string s = handleRequest("query foo()", root);
-  debug { import std.stdio : writeln; try { writeln(s); } catch (Exception) {} }
   assert(s == "[0,1,2]");
 }
 

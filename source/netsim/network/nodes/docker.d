@@ -6,6 +6,7 @@ import netsim.network.nodes.docker_utils.tap;
 import netsim.network.iface;
 import netsim.network.node;
 import netsim.utils.exception;
+import netsim.graph;
 
 import std.exception : enforce;
 import std.format : format, formattedRead;
@@ -26,7 +27,7 @@ enum image = "weibeld/ubuntu-networking";
 /** 
  * A docker container
  */
-final class DockerNode : Node
+final class DockerNode : Node, GraphNode
 {
   private UUID id;
   private string name;
@@ -152,6 +153,9 @@ final class DockerNode : Node
   {
     return containerPid;
   }
+
+  mixin emptyResolveMixin;
+  mixin queryMixin!(getName, getType, getContainerId, getContainerPid);
 }
 
 private class DockerInterface : NetworkInterface

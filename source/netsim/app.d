@@ -1,5 +1,7 @@
 module netsim.app;
 
+import netsim.netsim;
+
 import netsim.network.iface;
 import netsim.network.nodes.qemu;
 import netsim.network.nodes.docker;
@@ -14,6 +16,19 @@ import core.time : Duration;
 
 import core.sys.posix.signal : sigaction, sigaction_t, sigemptyset, SA_RESTART, SIGINT;
 
+void main()
+{
+  Netsim netsim = new Netsim;
+
+  import core.thread;
+
+  while (true)
+  {
+    Thread.sleep(Duration.max);
+  }
+}
+
+/*
 DockerNode docker1;
 // DockerNode docker2;
 QemuNode qemu1;
@@ -59,3 +74,4 @@ void main()
   while (true)
     Thread.sleep(Duration.max);
 }
+*/
