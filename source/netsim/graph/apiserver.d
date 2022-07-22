@@ -2,52 +2,83 @@ module netsim.graph.apiserver;
 
 import netsim.graph.graph;
 
+import std.concurrency : Tid, ownerTid, send;
 import std.stdio : writeln;
 
 import vibe.core.core : runEventLoopOnce;
 import vibe.core.net : listenTCP, TCPConnection, TCPConnectionDelegate;
 import vibe.stream.operations : readUntil;
 
+void graphApiServerLoop()
+{
+  // todo: replace assert with log and enclose in while loop
+  GraphApiServer apiServer = new GraphApiServer(ownerTid);
+  apiServer.start;
+  assert(false, "The api server has stopped");
+}
+
 class GraphApiServer
 {
-  private GraphNode root;
+  private Tid parentThread;
 
-  this(GraphNode root)
+  this(Tid parentThread)
   {
-    this.root = root;
+    this.parentThread = parentThread;
   }
 
   void start()
   {
-    TCPConnectionDelegate dg = (TCPConnection conn) nothrow @trusted {
-      try
-      {
-        while (!conn.empty)
-        {
-          ubyte[] msg = conn.readUntil([0x00]);
-          writeln(cast(char[]) msg);
-        }
-        writeln("connection closed");
-      }
-      catch (Exception e)
-      {
-        try
-          writeln(e);
-        catch (Exception e)
-        {
-        }
-      }
-    };
-
-    auto listener = listenTCP(9005, dg, "127.0.0.1");
+    auto listener = listenTCP(9005, &handleConnection, "127.0.0.1");
     while (true)
     {
       runEventLoopOnce;
     }
   }
 
-  void handleIncoming(string reqStr)
+  void handleConnection(TCPConnection conn) nothrow @trusted
   {
-    handleRequest(reqStr, root);
+    try
+    {
+      while (!conn.empty) // blocks until data is received (true) or the connection is closed (false)
+      {
+        ubyte[] msg = conn.readUntil([0x00]);
+        handleRequestString(cast(string) msg);
+      }
+      writeln("connection closed");
+    }
+    catch (Exception e)
+    {
+      try
+      {
+        writeln(e);
+      }
+      catch (Exception e)
+      {
+      }
+    }
+  }
+
+  void handleRequestString(string reqStr) nothrow
+  {
+    try
+    {
+      writeln(reqStr);
+      Request req = parseRequest(reqStr);
+      writeln(req);
+      // parse
+      // send to parentThread
+
+      // receive response
+    }
+    catch (Exception e)
+    {
+      try
+      {
+        writeln("Error: ", e.msg);
+      }
+      catch (Exception e)
+      {
+      }
+    }
   }
 }

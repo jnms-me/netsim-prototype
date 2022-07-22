@@ -11,6 +11,7 @@ public import std.signals;
 import std.conv : to;
 import std.exception : enforce;
 import std.format : format;
+import std.string : capitalize;
 import std.uni : isAlpha, isAlphaNum;
 
 import pegged.grammar;
@@ -125,12 +126,14 @@ Request parseRequest(string reqStr)
 
   Request request;
 
+  bool foundSignal = false;
+
   void processSubtree(ParseTree subtree)
   {
     switch (subtree.name)
     {
-    case "RequestGrammmar.RequestType":
-      request.type = subtree.matches[0].to!RequestType;
+    case "RequestGrammar.RequestType":
+      request.type = subtree.matches[0].capitalize.to!RequestType;
       break;
     case "RequestGrammar.GraphPathSegment":
       request.path.segments ~= GraphPathSegment();
@@ -140,6 +143,7 @@ Request parseRequest(string reqStr)
         "Error parsing: the GraphPath resolves to a signal but the RequestType isn't (un)subscribe"
       );
       request.path.segments ~= GraphPathSegment();
+      foundSignal = true;
       break;
     case "RequestGrammar.Name":
       request.path.segments[$ - 1].name = subtree.matches[0];
@@ -158,6 +162,11 @@ Request parseRequest(string reqStr)
 
   // The root is the first grammar line: RequestGrammar.Request
   processSubtree(parseTree);
+
+  if (request.type == RequestType.Subscribe || request.type == RequestType.Unsubscribe)
+  {
+    enforce(foundSignal, "The request type is (un)subscibe but the GraphPath doesn't resolve to a signal");
+  }
 
   return request;
 }
@@ -417,14 +426,13 @@ unittest
 ///
 
 /** 
- * Travels the graph with a valid request string.
+ * Travels the graph with a valid Request object.
  * Returns: A json string
  */
-string handleRequest(string reqStr, GraphNode root)
+string handleRequest(Request req, GraphNode root)
 {
   try
   {
-    Request req = parseRequest(reqStr);
     assert(req.path.segments.length >= 1);
 
     GraphNode curr = root;

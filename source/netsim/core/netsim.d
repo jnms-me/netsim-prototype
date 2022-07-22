@@ -4,6 +4,7 @@ import netsim.core.project;
 import netsim.graph.apiserver;
 import netsim.graph.graph;
 
+import std.concurrency : spawn, Tid;
 import std.exception : enforce;
 import std.format : format;
 import std.uuid : UUID;
@@ -11,7 +12,7 @@ import std.uuid : UUID;
 final class Netsim : GraphNode
 {
   private Project[UUID] projects;
-  private GraphApiServer apiServer;
+  private Tid apiServerThread;
 
   ///
   // Constructors / Destructor
@@ -19,8 +20,7 @@ final class Netsim : GraphNode
 
   this()
   {
-    apiServer = new GraphApiServer(this);
-    apiServer.start;
+    apiServerThread = spawn(&graphApiServerLoop);
   }
 
   ///
@@ -60,8 +60,14 @@ final class Netsim : GraphNode
   // For GraphApiServer
   ///
 
-  string handleRequest(Request req)
+  void listenForGraphApiRequests()
   {
-    return "";
+    while (true)
+    {
+      // receive
+      // Request req;
+      // string result = handleRequest(req, this);
+      // send
+    }
   }
 }
