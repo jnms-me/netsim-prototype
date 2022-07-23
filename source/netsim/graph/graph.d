@@ -211,7 +211,7 @@ interface GraphNode
    *   segment = Any but the last segment of a Query, with type = Method.
    * Returns: The GraphNode child on which the next segement should be called upon.
    */
-  GraphNode resolve(GraphPathSegment segment);
+  GraphNode resolve(in GraphPathSegment segment);
 
   /** 
    * Calls the method referred to by `segment` and returns its result: a string.
@@ -219,7 +219,7 @@ interface GraphNode
    *   segment = The last segment of a Query, with type = Method.
    * Returns: The result of the method referred to by `segment`, that should be sent to the client.
    */
-  string query(GraphPathSegment segment);
+  string query(in GraphPathSegment segment);
 
   /** 
    * Every time the signal referred to by `segment` is triggered, calls hook with the value of that signal.
@@ -229,7 +229,7 @@ interface GraphNode
    *   segment = The last segment of a Query, with type = Signal.
    *   hook = A delegate referring to a class method with signature "void method(string)".
    */
-  // void subscribe(GraphPathSegment segment, void delegate(string) hook);
+  // void subscribe(in GraphPathSegment segment, void delegate(string) hook);
 
   /**
    * Removes a hook from the call list of the signal referred to by `segment`.
@@ -238,7 +238,7 @@ interface GraphNode
    *   segment = The last segment of a Query, with type = Signal.
    *   hook = A delegate referring to a class method with signature "void method(string)".
    */
-  // void unsubscribe(GraphPathSegment segment, void delegate(string) hook);
+  // void unsubscribe(in GraphPathSegment segment, void delegate(string) hook);
 }
 
 ///
@@ -266,7 +266,7 @@ template baseResolveQueryMixin(ResolveOrQueryEnum ResolveOrQuery, Methods...)
 
   import painlessjson : toJSON;
 
-  auto base(GraphPathSegment segment)
+  auto base(in GraphPathSegment segment)
   {
     switch (segment.name)
     {
@@ -314,7 +314,7 @@ template baseResolveQueryMixin(ResolveOrQueryEnum ResolveOrQuery, Methods...)
       }
 
     default:
-      assert(false, format!"Invalid method name %s"(segment.name));
+      throw new Exception(format!"Invalid method name %s"(segment.name));
     }
   }
 }
@@ -329,7 +329,7 @@ if (Methods.length > 0)
 {
   import netsim.graph.graph : GraphNode, GraphPathSegment;
 
-  GraphNode resolve(GraphPathSegment segment)
+  GraphNode resolve(in GraphPathSegment segment)
   {
     import netsim.graph.graph : baseResolveQueryMixin, ResolveOrQueryEnum;
     import std.traits : isFinalFunction, ReturnType;
@@ -358,7 +358,7 @@ if (Methods.length > 0)
 {
   import netsim.graph.graph : GraphPathSegment;
 
-  string query(GraphPathSegment segment)
+  string query(in GraphPathSegment segment)
   in (segment.args.length == 0)
   {
     import netsim.graph.graph : baseResolveQueryMixin, ResolveOrQueryEnum;
@@ -380,7 +380,7 @@ if (Methods.length > 0)
 
 template emptyResolveMixin()
 {
-  GraphNode resolve(GraphPathSegment segment)
+  GraphNode resolve(in GraphPathSegment segment)
   {
     assert(false, "This GraphNode has no resolve methods");
   }
@@ -388,7 +388,7 @@ template emptyResolveMixin()
 
 template emptyQueryMixin()
 {
-  string query(GraphPathSegment segment)
+  string query(in GraphPathSegment segment)
   {
     assert(false, "This GraphNode has no query methods");
   }
@@ -429,7 +429,7 @@ unittest
  * Travels the graph with a valid Request object.
  * Returns: A json string
  */
-string handleRequest(Request req, GraphNode root)
+string handleRequest(const Request req, GraphNode root)
 {
   try
   {
@@ -474,12 +474,8 @@ unittest
       return [0, 1, 2];
     }
 
+    mixin emptyResolveMixin;
     mixin queryMixin!foo;
-
-    GraphNode resolve(GraphPathSegment segment)
-    {
-      return null;
-    }
 
     void subscribe(GraphPathSegment segment, void delegate(string) hook)
     {
@@ -491,7 +487,8 @@ unittest
   }
 
   RootNode root = new RootNode;
-  string s = handleRequest("query foo()", root);
+  auto req = Request(RequestType.Query, GraphPath([GraphPathSegment("foo")]));
+  string s = handleRequest(req, root);
   assert(s == "[0,1,2]");
 }
 
