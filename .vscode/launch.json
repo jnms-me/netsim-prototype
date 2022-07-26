@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "gdb",
+      "request": "launch",
+      "name": "Debug D project with native-debug/gdb",
+      "cwd": "${workspaceRoot}",
+      "target": "./netsim-prototype-server"
+    }
+  ]
+}
