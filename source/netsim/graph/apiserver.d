@@ -39,16 +39,16 @@ void apiServerEntryPoint() @trusted nothrow
     Thread listenerThread = spawnThread("apiServer listener", &apiServerListenerEntryPoint);
     Thread parserThread = spawnThread("apiServer parser", &apiServerParserEntryPoint);
 
-    UUID uuid = randomUUID;
-    writefln!"Sending request with id %s"(uuid);
-    receivedQueue.push(ReceivedMessage(randomUUID, "query getProjects()"));
+    // UUID uuid = randomUUID;
+    // writefln!"Sending request with id %s"(uuid);
+    // receivedQueue.push(ReceivedMessage(randomUUID, "query getProjects()"));
 
     while (!stopApiServerThread)
     {
       if (!toSendQueue.empty)
       {
         auto msg = toSendQueue.pop.get;
-        // writefln!"message in toSendQueue as response to %s: %s"(msg.requestId, msg.responseStr);
+        writefln!"message in toSendQueue as response to %s: %s"(msg.requestId, msg.responseStr);
       }
       else
         Thread.sleep(10.msecs);
@@ -76,28 +76,34 @@ void apiServerListenerEntryPoint() @trusted nothrow
     listener.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
 
     listener.bind(new InternetAddress("localhost", 9005));
-    listener.listen(10);
+    listener.listen(1);
 
     SocketSet readSet = new SocketSet;
 
     Socket[] connectedClients;
 
     SocketBuffer[Socket] socketBuffers;
-    UUID[UUID][Socket] requestIds;
+    // UUID[UUID][Socket] socketRequestIdsMap;
+    Socket[UUID] requestIdSocketMap;
 
     while (!stopApiServerThread)
     {
+      //
+      // Handle connect/disconnect and receive data
+      //
       readSet.reset();
       foreach (client; connectedClients)
         readSet.add(client);
       readSet.add(listener);
 
-      int eventCount = Socket.select(readSet, null, null, 10.msecs);
+      int eventCount = Socket.select(readSet, null, null, 1.msecs);
 
       if (eventCount == -1) // interruption
-        continue;
+      {
+      }
       else if (eventCount == 0) // timeout
-        continue;
+      {
+      }
       else if (eventCount > 0)
       {
         // Check listener
@@ -106,7 +112,7 @@ void apiServerListenerEntryPoint() @trusted nothrow
           auto newSocket = listener.accept;
           connectedClients ~= newSocket;
           socketBuffers[newSocket] = SocketBuffer(1024 * 16);
-          requestIds[newSocket] = null; // set the UUID[UUID] aa to its init (null)
+          // socketRequestIdsMap[newSocket] = null; // set the UUID[UUID] aa to its init state (null)
           eventCount--;
         }
 
@@ -133,20 +139,23 @@ void apiServerListenerEntryPoint() @trusted nothrow
               connectedClients[i] = connectedClients[$ - 1];
               connectedClients = connectedClients[0 .. $ - 1];
               socketBuffers.remove(client);
-              requestIds.remove(client);
+              // socketRequestIdsMap.remove(client);
+              foreach (id, socket; requestIdSocketMap)
+                if (socket == client)
+                  requestIdSocketMap.remove(id); // the foreach seems to handle removing while iterating fine
               i--;
             }
-            else // Client sent data
+            else // The client sent data
             {
-              assert(client in socketBuffers);
+              assert((client in socketBuffers) !is null);
               ubyte[] data = buffer[0 .. readCount];
               string[] requestStrings = socketBuffers[client].add(data);
 
               foreach (requestStr; requestStrings)
               {
                 UUID requestId = randomUUID;
-                assert((requestId in requestIds[client]) is null);
-                requestIds[client][requestId] = requestId;
+                assert((requestId in requestIdSocketMap) is null);
+                requestIdSocketMap[requestId] = client;
                 receivedQueue.push(ReceivedMessage(
                     requestId, requestStr
                 ));
@@ -157,6 +166,50 @@ void apiServerListenerEntryPoint() @trusted nothrow
       }
       else
         assert(false, format!"Socket.select returned invalid value %d"(eventCount));
+
+      //
+      // Send data
+      //
+      if (!toSendQueue.empty)
+      {
+        auto front = toSendQueue.pop;
+        if (front.isNull)
+        {
+          // something popped the front between our toSendQueue.empty call and our toSendQueue.pop call
+          // Todo: log this
+        }
+        else
+        {
+          immutable MessageToSend messageToSend = front.get;
+          if ((messageToSend.requestId in requestIdSocketMap) is null)
+          {
+            // Unknown request id, client has disconnected while the request was processing
+          }
+          else
+          {
+            Socket client = requestIdSocketMap[messageToSend.requestId];
+            string message = messageToSend.responseStr ~ "\x00";
+            while (message.length)
+            {
+              auto sendResult = client.send(message[]);
+              if (sendResult == Socket.ERROR)
+              {
+                // Todo: handle error somehow
+                throw new Exception(format!"client socket send error: %s"(lastSocketError));
+              }
+              else if (sendResult == 0)
+              {
+                // Todo: handle disconnect
+                throw new Exception("client disconnected during send()");
+              }
+              else
+              {
+                message = message[sendResult .. $];
+              }
+            }
+          }
+        }
+      }
     }
   }
   catch (Exception e)
@@ -171,7 +224,7 @@ void apiServerListenerEntryPoint() @trusted nothrow
 /// Parser entry point
 void apiServerParserEntryPoint() @trusted nothrow
 {
-  alias sleep = () { Thread.sleep(1.msecs); };
+  auto sleep = () => Thread.sleep(1.msecs);
   try
   {
     while (!stopApiServerThread)

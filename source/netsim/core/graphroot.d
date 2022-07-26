@@ -118,7 +118,7 @@ final class GraphRoot : GraphNode
         auto front = parsedQueue.pop;
         if (front.isNull)
         {
-          // something popped the front between our receivedQueue.empty call and our receivedQueue.pop call
+          // something popped the front between our parsedQueue.empty call and our parsedQueue.pop call
           // Todo: log this
           sleep();
         }
