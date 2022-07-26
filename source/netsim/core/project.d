@@ -5,9 +5,12 @@ import netsim.network.node;
 import netsim.network.nodes.docker;
 import netsim.network.nodes.qemu;
 
+import std.algorithm : map;
+import std.conv : to;
 import std.exception : enforce;
 import std.format : format;
 import std.uuid : UUID;
+import std.json : JSONValue;
 
 final class Project : GraphNode
 {
@@ -105,22 +108,11 @@ final class Project : GraphNode
   }
 
   ///
-  // wip
+  // Serialization
   ///
 
-  mixin Signal!(string) s1;
-  mixin Signal!(string) s2;
-
-  void addNodeQuery(NodeType type)()
+  JSONValue _toJSON() const @safe
   {
-    static if (type == NodeType.Docker)
-    {
-    }
-    else static if (type == NodeType.Qemu)
-    {
-
-    }
-    else
-      static assert(false, format!"Invalid node type (%s)"(type));
+    return JSONValue(["id": id.toString, "name": name]);
   }
 }

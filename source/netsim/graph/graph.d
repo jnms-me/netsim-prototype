@@ -324,8 +324,7 @@ template baseResolveQueryMixin(ResolveOrQueryEnum ResolveOrQuery, Methods...)
  * Params:
  *   Methods: List of final methods of the current GraphNode class that return a GraphNode child.
  */
-template resolveMixin(Methods...)
-if (Methods.length > 0)
+template resolveMixin(Methods...) if (Methods.length > 0)
 {
   import netsim.graph.graph : GraphNode, GraphPathSegment;
 
@@ -353,8 +352,7 @@ if (Methods.length > 0)
  * Params:
  *   Methods: List of final methods of the current class that return a string (usually json).
  */
-template queryMixin(Methods...)
-if (Methods.length > 0)
+template queryMixin(Methods...) if (Methods.length > 0)
 {
   import netsim.graph.graph : GraphPathSegment;
 
@@ -429,7 +427,7 @@ unittest
  * Travels the graph with a valid Request object.
  * Returns: A json string
  */
-string handleRequest(const Request req, GraphNode root)
+string handleRequest(const Request req, GraphNode root) nothrow
 {
   try
   {
@@ -459,7 +457,10 @@ string handleRequest(const Request req, GraphNode root)
   }
   catch (Exception e)
   {
-    return format!"{\"error\": \"%s\"}"(e);
+    try
+      return format!"{\"error\": \"%s\"}"(e);
+    catch (Exception e)
+      return e.msg;
   }
   assert(false);
 }

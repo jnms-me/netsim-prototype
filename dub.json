@@ -1,19 +1,17 @@
 {
+	"name": "netsim-prototype-server",
+	"description": "Netsim server prototype",
 	"authors": [
 		"Jonas Meeuws"
 	],
 	"copyright": "Copyright © 2022, Jonas Meeuws",
+	"license": "proprietary",
 	"dependencies": {
 		"painlessjson": "~>1.4.0",
 		"pegged": "~>0.4.6",
-		"silly": "~>1.1.1",
-		"vibe-core": "~>1.22.4",
-		"vibe-d:stream": "~>0.9.5"
+		"silly": "~>1.1.1"
 	},
-	"description": "Netsim server prototype",
-	"license": "proprietary",
 	"mainSourceFile": "source/netsim/main.d",
-	"name": "netsim-prototype-server",
 	"preGenerateCommands": [
 		"./dpp_build.d"
 	],

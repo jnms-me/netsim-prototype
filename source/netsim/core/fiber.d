@@ -1,3 +1,4 @@
+/// Fibers mainly for network interface send/receive loops
 module netsim.core.fiber;
 
 public import core.thread : Fiber;
