@@ -17,8 +17,9 @@ void setupSegfaultHandler()
     registerMemoryErrorHandler();
 }
 
-void main()
+void main(string[] args)
 {
+  args[0] = "hello world i have a long name";
   setupSegfaultHandler;
   registerSignalHandlers;
 

@@ -8,7 +8,9 @@ import std.algorithm : canFind;
 import std.concurrency : ownerTid, receive, send, thisTid, Tid;
 import std.exception : collectException;
 import std.format : format;
-import std.stdio : writeln, writefln;
+import std.socket : AddressFamily, InternetAddress, lastSocketError, Socket, SocketOption, SocketOptionLevel, SocketSet,
+  SocketType;
+import std.stdio : writefln, writeln;
 import std.uuid : randomUUID, UUID;
 
 import core.time : msecs;
@@ -46,9 +48,10 @@ void apiServerEntryPoint() @trusted nothrow
       if (!toSendQueue.empty)
       {
         auto msg = toSendQueue.pop.get;
-        writefln!"message in toSendQueue as response to %s: %s"(msg.requestId, msg.responseStr);
+        // writefln!"message in toSendQueue as response to %s: %s"(msg.requestId, msg.responseStr);
       }
-      Thread.sleep(10.msecs);
+      else
+        Thread.sleep(10.msecs);
     }
     waitForThreadToExit(listenerThread);
     waitForThreadToExit(parserThread);
@@ -67,9 +70,93 @@ void apiServerListenerEntryPoint() @trusted nothrow
 {
   try
   {
+    // std.socket guide: https://dpldocs.info/this-week-in-d/Blog.Posted_2019_11_11.html#sockets-tutorial
+
+    Socket listener = new Socket(AddressFamily.INET, SocketType.STREAM);
+    listener.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
+
+    listener.bind(new InternetAddress("localhost", 9005));
+    listener.listen(10);
+
+    SocketSet readSet = new SocketSet;
+
+    Socket[] connectedClients;
+
+    SocketBuffer[Socket] socketBuffers;
+    UUID[UUID][Socket] requestIds;
+
     while (!stopApiServerThread)
     {
-      Thread.sleep(10.msecs);
+      readSet.reset();
+      foreach (client; connectedClients)
+        readSet.add(client);
+      readSet.add(listener);
+
+      int eventCount = Socket.select(readSet, null, null, 10.msecs);
+
+      if (eventCount == -1) // interruption
+        continue;
+      else if (eventCount == 0) // timeout
+        continue;
+      else if (eventCount > 0)
+      {
+        // Check listener
+        if (readSet.isSet(listener)) // A new client wants to connect
+        {
+          auto newSocket = listener.accept;
+          connectedClients ~= newSocket;
+          socketBuffers[newSocket] = SocketBuffer(1024 * 16);
+          requestIds[newSocket] = null; // set the UUID[UUID] aa to its init (null)
+          eventCount--;
+        }
+
+        for (int i = 0; i < connectedClients.length; i++)
+        {
+          if (eventCount == 0)
+            break; // break inner for loop
+
+          Socket client = connectedClients[i];
+          if (readSet.isSet(client)) // Client has data available for reading or has disconnected
+          {
+            eventCount--;
+
+            ubyte[4096] buffer;
+            auto readCount = client.receive(buffer[]);
+            if (readCount == Socket.ERROR)
+            {
+              throw new Exception(lastSocketError);
+            }
+            else if (readCount == 0) // Client disconnected
+            {
+              client.close;
+              // onDisconnected
+              connectedClients[i] = connectedClients[$ - 1];
+              connectedClients = connectedClients[0 .. $ - 1];
+              socketBuffers.remove(client);
+              requestIds.remove(client);
+              i--;
+            }
+            else // Client sent data
+            {
+              assert(client in socketBuffers);
+              ubyte[] data = buffer[0 .. readCount];
+              string[] requestStrings = socketBuffers[client].add(data);
+
+              foreach (requestStr; requestStrings)
+              {
+                UUID requestId = randomUUID;
+                assert((requestId in requestIds[client]) is null);
+                requestIds[client][requestId] = requestId;
+                receivedQueue.push(ReceivedMessage(
+                    requestId, requestStr
+                ));
+              }
+            }
+          }
+        }
+      }
+      else
+        assert(false, format!"Socket.select returned invalid value %d"(eventCount));
     }
   }
   catch (Exception e)
@@ -84,7 +171,7 @@ void apiServerListenerEntryPoint() @trusted nothrow
 /// Parser entry point
 void apiServerParserEntryPoint() @trusted nothrow
 {
-  auto sleep = { Thread.sleep(1.msecs); };
+  alias sleep = () { Thread.sleep(1.msecs); };
   try
   {
     while (!stopApiServerThread)
@@ -120,7 +207,7 @@ void apiServerParserEntryPoint() @trusted nothrow
           if (!parseError)
           {
             parsedQueue.push(
-              cast(immutable(ParsedMessage)) // unsafe cast needed because Request contains dynamic arrays
+              cast(immutable(ParsedMessage)) // unsafe cast needed because Request contains dynamic arrays i think
               ParsedMessage(receivedMessage.requestId, req)
             );
           }
@@ -128,7 +215,7 @@ void apiServerParserEntryPoint() @trusted nothrow
           {
             // Todo: also log
             toSendQueue.push(MessageToSend(
-                receivedMessage.requestId, "error: parsing failed: " ~ parseErrorMsg
+                receivedMessage.requestId, parseErrorMsg
             ));
           }
         }
@@ -190,6 +277,90 @@ struct MessageToSend
 shared SharedQueue!(immutable(ReceivedMessage)) receivedQueue;
 shared SharedQueue!(immutable(ParsedMessage)) parsedQueue;
 shared SharedQueue!(immutable(MessageToSend)) toSendQueue;
+
+///            ///
+// SocketBuffer //
+///            ///
+
+/// Struct for putting request string fragments back together
+struct SocketBuffer
+{
+  ubyte[] buffer;
+  size_t length = 0;
+
+  @disable this();
+
+  this(size_t size)
+  {
+    buffer = new ubyte[](size);
+  }
+
+  /** 
+   * Add data to the buffer.
+   * This also extracts and removes request strings found by adding existing and new data together.
+   *
+   * Returns: An array of found request strings that may be empty.
+   */
+  string[] add(in ubyte[] data) @trusted //@safe nothrow
+  {
+    size_t totalLength = length + data.length;
+
+    if (totalLength < buffer.length)
+    {
+      reset;
+      // Todo: log "SocketBuffer length would be over %d bytes, SocketBuffer has been reset"
+    }
+
+    buffer[length .. (length + data.length)] = data[];
+
+    // writefln!"SocketBuffer: adding %d bytes for total length of %d"(data.length, totalLength);
+    // writefln!"SocketBuffer: current string is: %s"(cast(char[]) buffer[0 .. totalLength]);
+
+    // Search for request delimiters (zero-bytes)
+    string[] requestStrings;
+    size_t newStartPos = 0;
+    for (size_t i = length; i < totalLength; i++)
+    {
+      ubyte b = buffer[i];
+      if (b == 0)
+      {
+        alias castToString = (ubyte[] arr) @trusted { return cast(string) arr; };
+        string fullRequestString = castToString(buffer[newStartPos .. i]); // without trailing zero-byte
+
+        // writefln!"SocketBuffer: found a request string: %s"(cast(char[]) fullRequestString);
+
+        requestStrings ~= fullRequestString[0 .. $].dup;
+        newStartPos = i + 1;
+      }
+    }
+
+    // Apply the new start position
+    if (newStartPos > 0)
+    {
+      size_t lengthAfterCutting = totalLength - newStartPos;
+      buffer[0 .. lengthAfterCutting] = buffer[newStartPos .. totalLength];
+      length = lengthAfterCutting;
+
+      // writefln!"SocketBuffer: remaining string: %s"(cast(char[]) buffer[0 .. length]);
+      // writeln;
+    }
+    else
+    {
+      length = totalLength;
+    }
+
+    return requestStrings;
+  }
+
+  void reset() @safe nothrow
+  {
+    length = 0;
+  }
+}
+
+///                  ///
+// Tcp event handlers //
+///                  ///
 
 /+
 
