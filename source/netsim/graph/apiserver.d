@@ -39,19 +39,9 @@ void apiServerEntryPoint() @trusted nothrow
     Thread listenerThread = spawnThread("apiServer listener", &apiServerListenerEntryPoint);
     Thread parserThread = spawnThread("apiServer parser", &apiServerParserEntryPoint);
 
-    // UUID uuid = randomUUID;
-    // writefln!"Sending request with id %s"(uuid);
-    // receivedQueue.push(ReceivedMessage(randomUUID, "query getProjects()"));
-
     while (!stopApiServerThread)
     {
-      if (!toSendQueue.empty)
-      {
-        auto msg = toSendQueue.pop.get;
-        writefln!"message in toSendQueue as response to %s: %s"(msg.requestId, msg.responseStr);
-      }
-      else
-        Thread.sleep(10.msecs);
+      Thread.sleep(10.msecs);
     }
     waitForThreadToExit(listenerThread);
     waitForThreadToExit(parserThread);
