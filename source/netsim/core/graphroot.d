@@ -104,7 +104,7 @@ final class GraphRoot : GraphNode
 
   void processGraphApiRequests(in Duration returnAfter)
   {
-    alias sleep = () { Thread.sleep(1.msecs); };
+    alias sleep = () => Thread.sleep(1.msecs);
     StopWatch sw = StopWatch(AutoStart.yes);
 
     while (sw.peek < returnAfter)

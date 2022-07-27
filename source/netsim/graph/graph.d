@@ -458,7 +458,7 @@ string handleRequest(const Request req, GraphNode root) nothrow
   catch (Exception e)
   {
     try
-      return format!"{\"error\": \"%s\"}"(e);
+      return format!"{\"error\": \"%s\"}"(e.msg);
     catch (Exception e)
       return e.msg;
   }

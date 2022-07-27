@@ -66,7 +66,7 @@ void apiServerListenerEntryPoint() @trusted nothrow
     listener.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
 
     listener.bind(new InternetAddress("localhost", 9005));
-    listener.listen(1);
+    listener.listen(10);
 
     SocketSet readSet = new SocketSet;
 
@@ -214,7 +214,7 @@ void apiServerListenerEntryPoint() @trusted nothrow
 /// Parser entry point
 void apiServerParserEntryPoint() @trusted nothrow
 {
-  auto sleep = () => Thread.sleep(1.msecs);
+  alias sleep = () => Thread.sleep(1.msecs);
   try
   {
     while (!stopApiServerThread)
@@ -329,6 +329,7 @@ shared SharedQueue!(immutable(MessageToSend)) toSendQueue;
 struct SocketBuffer
 {
   ubyte[] buffer;
+  ubyte[] tempBuffer;
   size_t length = 0;
 
   @disable this();
@@ -336,6 +337,7 @@ struct SocketBuffer
   this(size_t size)
   {
     buffer = new ubyte[](size);
+    tempBuffer = new ubyte[](size);
   }
 
   /** 
@@ -368,6 +370,7 @@ struct SocketBuffer
       if (b == 0)
       {
         alias castToString = (ubyte[] arr) @trusted { return cast(string) arr; };
+
         string fullRequestString = castToString(buffer[newStartPos .. i]); // without trailing zero-byte
 
         // writefln!"SocketBuffer: found a request string: %s"(cast(char[]) fullRequestString);
@@ -381,7 +384,8 @@ struct SocketBuffer
     if (newStartPos > 0)
     {
       size_t lengthAfterCutting = totalLength - newStartPos;
-      buffer[0 .. lengthAfterCutting] = buffer[newStartPos .. totalLength];
+      tempBuffer[0 .. lengthAfterCutting] = buffer[newStartPos .. totalLength];
+      buffer[0 .. lengthAfterCutting] = tempBuffer[0 .. lengthAfterCutting];
       length = lengthAfterCutting;
 
       // writefln!"SocketBuffer: remaining string: %s"(cast(char[]) buffer[0 .. length]);
