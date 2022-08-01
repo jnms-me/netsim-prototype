@@ -1,11 +1,13 @@
 module netsim.network.nodes.qemu;
 
 import netsim.core.hostos : LoopbackManager;
+import netsim.graph.graph;
 import netsim.network.iface;
 import netsim.network.node;
 
 import std.conv : to;
 import std.format : format;
+import std.json : JSONValue;
 import std.process : pipeProcess, ProcessPipes, wait;
 import std.socket : InternetAddress, Socket, UdpSocket, wouldHaveBlocked;
 import std.uuid : UUID;
@@ -58,7 +60,7 @@ final class QemuNode : Node
     return name;
   }
 
-  public static NodeType getType()
+  public static NodeType getType() @safe
   {
     return NodeType.Qemu;
   }
@@ -71,6 +73,18 @@ final class QemuNode : Node
   override public NetworkInterface[] getInterfaces() const
   {
     return cast(NetworkInterface[]) interfaces;
+  }
+
+  //
+  // Implementing GraphNode
+  //
+
+  mixin emptyResolveMixin;
+  mixin emptyQueryMixin;
+
+  JSONValue _toJSON() const @safe
+  {
+    return JSONValue(["id": id.toString, "type": getType.to!string, "name": name]);
   }
 }
 

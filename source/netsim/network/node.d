@@ -1,5 +1,6 @@
 module netsim.network.node;
 
+import netsim.graph.graph : GraphNode;
 import netsim.network.iface : NetworkInterface;
 import netsim.network.nodes.docker;
 import netsim.network.nodes.qemu;
@@ -7,7 +8,7 @@ import netsim.network.nodes.qemu;
 import std.exception : enforce;
 import std.format : format;
 
-interface Node
+interface Node : GraphNode
 {
   string getName() const;
   static NodeType getType();

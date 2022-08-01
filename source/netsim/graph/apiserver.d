@@ -16,9 +16,9 @@ import std.uuid : randomUUID, UUID;
 import core.time : msecs;
 import core.thread : Thread;
 
-///           ///
+//             //
 // Module init //
-///           ///
+//             //
 
 shared static this()
 {
@@ -27,9 +27,9 @@ shared static this()
   toSendQueue = new typeof(toSendQueue);
 }
 
-///                                 ///
+//                                   //
 // Entrypoints for apiServer threads //
-///                                 ///
+//                                   //
 
 /// Main entry point
 void apiServerEntryPoint() @trusted nothrow
@@ -148,6 +148,9 @@ void apiServerListenerEntryPoint() @trusted nothrow
                 requestIdSocketMap[requestId] = client;
                 receivedQueue.push(ReceivedMessage(
                     requestId, requestStr
+                ));
+                toSendQueue.push(MessageToSend(
+                    requestId
                 ));
               }
             }
@@ -274,9 +277,9 @@ void apiServerParserEntryPoint() @trusted nothrow
   }
 }
 
-///             ///
+//               //
 // Public Queues //
-///             ///
+//               //
 
 struct ReceivedMessage
 {
@@ -321,9 +324,9 @@ shared SharedQueue!(immutable(ReceivedMessage)) receivedQueue;
 shared SharedQueue!(immutable(ParsedMessage)) parsedQueue;
 shared SharedQueue!(immutable(MessageToSend)) toSendQueue;
 
-///            ///
+//              //
 // SocketBuffer //
-///            ///
+//              //
 
 /// Struct for putting request string fragments back together
 struct SocketBuffer
@@ -404,219 +407,3 @@ struct SocketBuffer
     length = 0;
   }
 }
-
-///                  ///
-// Tcp event handlers //
-///                  ///
-
-/+
-
-///
-// TCP listener public queues
-///
-
-struct ReceivedMessage
-{
-  UUID requestId;
-  string requestStr; /// String without trailing zero-byte
-}
-
-struct MessageToSend
-{
-  UUID requestId;
-  string responseStr; /// String without trailing zero-byte
-
-  /// For sending just the request id (only done by the receiver)
-  this(UUID requestId) @safe nothrow
-  {
-    this.requestId = requestId;
-    this.responseStr = requestId.toString;
-  }
-
-  /// For sending a message with a leading request id (done by graph workers and error handeling)
-  this(UUID requestId, string responseStr) @safe nothrow
-  {
-    this.requestId = requestId;
-    this.responseStr = requestId.toString ~ " " ~ responseStr;
-  }
-}
-
-shared SharedQueue!(immutable(ReceivedMessage)) receivedQueue;
-shared SharedQueue!(immutable(MessageToSend)) toSendQueue;
-
-///
-// TCP listener callbacks
-///
-
-struct ClientInfo
-{
-  UUID id;
-  string address;
-  int fd;
-}
-
-private shared SharedMap!(TcpClient, ClientInfo) clients; /// Keys are TcpClient objects, values are ClientInfos
-private shared SharedMap!(TcpClient, UUID) requestIdClientMap; /// Keys are TcpClient objects, values are request ids
-
-private void onConnected(TcpClient client) @safe nothrow
-{
-  try
-  {
-    // TODO: log
-
-    UUID clientId = randomUUID;
-    string address = client.safeTcpClientRemoteAddressString;
-    int fd = client.safeTcpClientFd;
-    // clients.require(client, ClientInfo(clientId, address, fd));
-  }
-  catch (Exception e)
-  {
-    // TODO: log
-  }
-}
-
-private void onDisconnected(const int fd, string address) @safe nothrow
-{
-  try
-  {
-    foreach (client, info; clients)
-      if (info.fd == fd && info.address == address)
-      {
-        // TODO: log
-        clients.remove(client);
-        return;
-      }
-    throw new Exception("An unknown client disconnected");
-  }
-  catch (Exception e)
-  {
-    // TODO: log
-  }
-}
-
-private void onReceive(TcpClient client, const scope ubyte[] data) @safe nothrow
-{
-  // Define beforehand so error handling can access it
-  UUID clientId;
-  UUID requestId;
-
-  bool requestIdWasSent = false;
-
-  try
-  {
-    assert(data.length >= 0);
-    assert(data[$ - 1] == 0);
-    assert(clients.contains(client));
-
-    clientId = clients[client].get.id;
-    requestId = randomUUID;
-
-    // Send a message back to the client with just the request id
-    toSendQueue.push(MessageToSend(
-        requestId
-    ));
-    requestIdWasSent = true;
-
-    string message;
-    () @trusted { message = cast(string) data[0 .. $ - 1]; }();
-
-    // Store the received message so a graph worker can process it
-    receivedQueue.push(ReceivedMessage(
-        requestId, message
-    ));
-  }
-  catch (Exception e)
-  {
-    collectException({
-      // TODO: log
-      if (requestIdWasSent)
-      {
-        // Also send the error to the client
-        toSendQueue.push(MessageToSend(
-          requestId, "error: " ~ e.msg
-        ));
-      }
-    }());
-  }
-}
-
-private void onSendCompleted(const int fd, string address, const scope ubyte[] data, const size_t sent_size) nothrow @trusted
-{
-}
-
-private void onSocketError(const int fd, string address, string err) nothrow @trusted
-{
-  // TODO: log
-}
-
-+/
-
-/+
-import vibe.core.core : runEventLoopOnce, yield;
-import vibe.core.net : listenTCP, TCPConnection, TCPConnectionDelegate;
-import vibe.stream.operations : readUntil;
-
-void handleConnection(TCPConnection conn) nothrow @trusted
-{
-  // todo: implement request / error quota to fix "nc ip port < /dev/zero" dos attack
-  try
-  {
-    import std.stdio : writeln;
-
-    writeln(thisTid == apiServerTid);
-
-    while (!conn.empty) // blocks until data is received (true) or the connection is closed (false)
-    {
-      bool parseError = false;
-      string parseErrorMsg;
-
-      ubyte[] msg = conn.readUntil([0x00]);
-
-      string reqId = randomUUID.toString;
-
-      conn.write("some request id\x00");
-
-      Request req;
-      try
-        req = parseRequest(cast(string) msg);
-      catch (Exception e)
-      {
-        parseError = true;
-        parseErrorMsg = e.msg;
-      }
-
-      if (!parseError)
-      {
-        netsimThread.send(cast(immutable(Request)) req); // returns instantly
-        writeln("api: sent");
-
-        writeln("api: receiving...");
-        string res;
-        receive((string _res) { // receive response from netsim thread
-          writeln("api: received 1");
-          res = _res;
-        });
-        writeln("api: received 2");
-
-        conn.write(cast(ubyte[]) res);
-      }
-      else
-      {
-        assert(!parseErrorMsg.canFind("\x00"));
-        conn.write(reqId ~ " error: " ~ parseErrorMsg ~ "\x00");
-      }
-    }
-    writeln("connection closed");
-  }
-  catch (Exception e)
-  {
-    try
-    {
-      writeln(e);
-    }
-    catch (Exception e)
-    {
-    }
-  }
-}
-+/

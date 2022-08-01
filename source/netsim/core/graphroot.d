@@ -5,19 +5,23 @@ import netsim.core.thread : stopGraphThread;
 import netsim.graph.apiserver : MessageToSend, ParsedMessage, parsedQueue, toSendQueue;
 import netsim.graph.graph : GraphNode, handleRequest, queryMixin, resolveMixin;
 
+import std.algorithm : map;
+import std.array : array;
 import std.concurrency : receiveTimeout, send, spawn, Tid;
+import std.conv : to;
 import std.datetime.stopwatch : AutoStart, StopWatch;
 import std.exception : collectException, enforce;
 import std.format : format;
+import std.json : JSONValue;
 import std.stdio : writefln, writeln;
 import std.uuid : UUID;
 
 import core.thread : Thread;
 import core.time : Duration, msecs;
 
-///                  ///
+//                    //
 // Thread entry point //
-///                  ///
+//                    //
 
 void graphThreadEntryPoint() @trusted nothrow
 {
@@ -44,17 +48,17 @@ void graphThreadEntryPoint() @trusted nothrow
   }
 }
 
-///               ///
+//                 //
 // GraphRoot class //
-///               ///
+//                 //
 
 final class GraphRoot : GraphNode
 {
   private Project[UUID] projects;
 
-  ///
+  //
   // Constructors / Destructor
-  ///
+  //
 
   this()
   {
@@ -65,9 +69,9 @@ final class GraphRoot : GraphNode
     // TODO
   }
 
-  ///
+  //
   // Accessing projects
-  ///
+  //
 
   Project[] getProjects()
   {
@@ -91,16 +95,26 @@ final class GraphRoot : GraphNode
     return projects.keys;
   }
 
-  ///
+  //
   // Implementing GraphNode
-  ///
+  //
 
-  mixin resolveMixin!(getProject);
-  mixin queryMixin!(getProjects, projectExists, getProject, listProjectIds);
+  Project[] graph_getProjects() => getProjects;
+  bool graph_projectExists(string id) => projectExists(UUID(id));
+  Project graph_getProject(string id) => getProject(UUID(id));
+  string[] graph_listProjectIds() => listProjectIds.map!(id => id.toString).array;
 
-  ///
+  mixin resolveMixin!(graph_getProject);
+  mixin queryMixin!(graph_getProjects, graph_projectExists, graph_getProject, graph_listProjectIds);
+
+  JSONValue _toJSON() const @safe
+  {
+    return JSONValue(["GraphRoot"]);
+  }
+
+  //
   // For GraphApiServer
-  ///
+  //
 
   void processGraphApiRequests(in Duration returnAfter)
   {

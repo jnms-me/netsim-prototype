@@ -26,9 +26,9 @@ __gshared
   bool stopApiServerThread = false;
 }
 
-///               ///
+//                 //
 // Signal handling //
-///               ///
+//                 //
 
 extern (C) void onSignal(int sig) @system nothrow @nogc
 {
@@ -42,9 +42,9 @@ void registerSignalHandlers() @trusted nothrow @nogc
   signal(SIGTERM, &onSignal);
 }
 
-///               ///
+//                 //
 // Thread spawning //
-///               ///
+//                 //
 
 void setThreadName(string name)
 {
@@ -83,9 +83,9 @@ void spawnThreads()
   apiServerThread = spawnThread("apiServer", &apiServerEntryPoint);
 }
 
-///               ///
+//                 //
 // Thread shutdown //
-///               ///
+//                 //
 
 void waitForThreadToExit(ref Thread thread) @trusted nothrow
 {

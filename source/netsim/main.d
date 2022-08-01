@@ -9,7 +9,7 @@ import core.thread : Thread;
 import core.time : Duration, msecs, seconds;
 
 /// Catches segfaults and prints debug info, only works on x86 and x86_64.
-void setupSegfaultHandler()
+void setupSegfaultHandler() @trusted
 {
   import etc.linux.memoryerror;
 

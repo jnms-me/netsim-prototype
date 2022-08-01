@@ -11,14 +11,15 @@ public import std.signals;
 import std.conv : to;
 import std.exception : enforce;
 import std.format : format;
+import std.json : JSONValue;
 import std.string : capitalize;
 import std.uni : isAlpha, isAlphaNum;
 
 import pegged.grammar;
 
-///
-// Parsed request structure
-///
+//                          //
+// Parsed request structure //
+//                          //
 
 /** 
  * The parser returns this after successfully parsing a request.
@@ -67,9 +68,9 @@ struct GraphPathSegment
   string[] args;
 }
 
-///
-// Parsing
-///
+//         //
+// Parsing //
+//         //
 
 mixin(grammar(`
 RequestGrammar:
@@ -150,7 +151,14 @@ Request parseRequest(string reqStr)
       break;
     case "RequestGrammar.Arg":
       assert(subtree.matches.length == 1); // checks if <~ was used on all types
-      request.path.segments[$ - 1].args ~= subtree.matches[0];
+      string arg = subtree.matches[0];
+      // Remove double quotes from strings
+      // if (subtree.children[0].name == "RequestGrammar.String")
+      // {
+      //   assert(arg.length == 2 && arg[0] == '"' && arg[$ - 1] == '"');
+      //   arg = arg[1 .. $ - 1]; // 
+      // }
+      request.path.segments[$ - 1].args ~= arg;
       break;
     default:
       break;
@@ -193,9 +201,9 @@ unittest
   assert(req.path.segments[2].args[2] == "1");
 }
 
-///
-// Graph nodes
-///
+//             //
+// Graph nodes //
+//             //
 
 /** 
  * Every class that is part of the netsim graph needs to implement this interface.
@@ -239,11 +247,16 @@ interface GraphNode
    *   hook = A delegate referring to a class method with signature "void method(string)".
    */
   // void unsubscribe(in GraphPathSegment segment, void delegate(string) hook);
+
+  /*
+   * Serialize to json.
+   */
+  JSONValue _toJSON() const @safe;
 }
 
-///
-// Mixins for easily implementing the GraphNode interface in a class
-///
+//                                                                   //
+// Mixins for easily implementing the GraphNode interface in a class //
+//                                                                   //
 
 /// Used by baseResolveQueryMixin
 enum ResolveOrQueryEnum : ubyte
@@ -274,15 +287,22 @@ template baseResolveQueryMixin(ResolveOrQueryEnum ResolveOrQuery, Methods...)
       // Then it calls the method with name segment.name with those arguments and returns the result.
       static foreach (Method; Methods)
       {
-    case __traits(identifier, Method): // case MethodName:
+        static assert(
+          __traits(identifier, Method)[0 .. 6] == "graph_",
+          format!"Graph method '%s.%s' has missing graph_ prefix"(
+            __traits(parent, Method).stringof, __traits(identifier, Method)
+        )
+        );
+    case __traits(identifier, Method)[6 .. $]: // case MethodName (minus graph_ prefix):
         // This extra scope is just so we can reuse local variable names
         {
           const string MethodName = __traits(identifier, Method);
+          const string MethodNameWithoutPrefix = MethodName[6 .. $];
           alias MethodArgCount = arity!Method;
           alias MethodArgTypes = Parameters!Method;
 
           enforce(segment.args.length == MethodArgCount, format!"Method %s expected %d arguments instead of %d"(
-              MethodName, MethodArgCount, segment.args.length
+              MethodNameWithoutPrefix, MethodArgCount, segment.args.length
           ));
 
           // Convert each argument (string) to the type expected by the method
@@ -291,7 +311,10 @@ template baseResolveQueryMixin(ResolveOrQueryEnum ResolveOrQuery, Methods...)
             mixin(format!"Type arg_%d = void;"(i)); // Declare first so we can use try/catch
             try
             {
-              mixin(format!"arg_%d = segment.args[%d].to!Type;"(i, i));
+              static if (is(Type == string)) // Special case for string arguments: remove doublequotes
+                mixin(format!"arg_%d = segment.args[%d][1 .. $ - 1];"(i, i));
+              else
+                mixin(format!"arg_%d = segment.args[%d].to!Type;"(i, i));
             }
             catch (Exception e)
             {
@@ -399,29 +422,29 @@ unittest
 
   final class A
   {
-    GraphNode foo(int a, string b)
+    GraphNode graph_foo(int a, string b)
     {
       assert(a == 1 && b == "str");
       success = true;
       return null;
     }
 
-    mixin resolveMixin!foo;
+    mixin resolveMixin!graph_foo;
   }
 
   A a = new A;
 
   GraphPathSegment segment;
   segment.name = "foo";
-  segment.args = ["1", "str"];
+  segment.args = ["1", "\"str\""];
 
   assert(a.resolve(segment) is null);
   assert(success);
 }
 
-///
-// Graph traveling
-///
+//                 //
+// Graph traveling //
+//                 //
 
 /** 
  * Travels the graph with a valid Request object.
@@ -470,13 +493,13 @@ unittest
 {
   final class RootNode : GraphNode
   {
-    auto foo()
+    auto graph_foo()
     {
       return [0, 1, 2];
     }
 
     mixin emptyResolveMixin;
-    mixin queryMixin!foo;
+    mixin queryMixin!graph_foo;
 
     void subscribe(GraphPathSegment segment, void delegate(string) hook)
     {
@@ -485,6 +508,11 @@ unittest
     void unsubscribe(GraphPathSegment segment, void delegate(string) hook)
     {
     }
+
+    JSONValue _toJSON() const @safe
+    {
+      return JSONValue.init;
+    }
   }
 
   RootNode root = new RootNode;
@@ -492,70 +520,3 @@ unittest
   string s = handleRequest(req, root);
   assert(s == "[0,1,2]");
 }
-
-///
-// temp
-///
-
-/*
-  {"type": "query", "query": "getProject(uuid).listNodes()"}
-  {"type": "subscribe", "query": "getProject(uuid).listNodes()"}
-  {"type": "unsubscribe", "id": "subscription uuid"}
-
-  query getProject(uuid).listNodes()
-  subscribe getProject(uuid).listNodes()
-
-  query getProject(uuid)
-  subscribe getProject(uuid)
-
-
-  query getProject(uuid).listNodes()
-  returns ["id1": {...}, "id2": ...]
-
-  subscribe getProject(uuid).listNodes()
-  returns [subscription uuid]
-  sends subsciption [uuid] {contents}
-
-  cancelled using
-  unsubscribe [uuid]
-*/
-
-/*
-  Query:
-    parse from:
-      getProject(uuid).listNodes()
-    to:
-      list of QueryParts
-
-  QueryPart: (separated by .)
-    parse from:
-      getProject(uuid)
-      listNodes()
-      listNodes
-    to:
-      function name
-      list of QueryArguments
-  
-  QueryArgument:
-    parse from:
-      a string
-    using: std.conv.to
-    to:
-      a d type correspording to the function signature
-  
-  handleQuery(Query) in classes:
-    processes the first part
-    if there are more parts:
-      remove the first part
-      call handleQuery(Query) on a child
-
-  no documentation inside protocol
-  maybe inside errors
-*/
-
-/*
-  TODO:
-    - add request mockup
-    - add request and GraphPath parsing
-    - add version(GenerateGraphSpec)
-*/

@@ -8,9 +8,10 @@ import netsim.network.iface;
 import netsim.network.node;
 import netsim.utils.exception;
 
+import std.conv : to;
 import std.exception : enforce;
 import std.format : format, formattedRead;
-import std.format : format;
+import std.json : JSONValue;
 import std.process : execute;
 import std.stdio : File;
 import std.string : fromStringz;
@@ -27,7 +28,7 @@ enum image = "weibeld/ubuntu-networking";
 /** 
  * A docker container
  */
-final class DockerNode : Node, GraphNode
+final class DockerNode : Node
 {
   private UUID id;
   private string name;
@@ -114,7 +115,7 @@ final class DockerNode : Node, GraphNode
     return name;
   }
 
-  public static NodeType getType()
+  public static NodeType getType() @safe
   {
     return NodeType.Docker;
   }
@@ -154,8 +155,26 @@ final class DockerNode : Node, GraphNode
     return containerPid;
   }
 
+  //
+  // Implementing GraphNode
+  //
+
+  string graph_getName() => getName;
+  NodeType graph_getType() => getType;
+  string graph_getContainerId() => getContainerId;
+  int graph_getContainerPid() => getContainerPid;
+
   mixin emptyResolveMixin;
-  mixin queryMixin!(getName, getType, getContainerId, getContainerPid);
+  mixin queryMixin!(graph_getName, graph_getType, graph_getContainerId, graph_getContainerPid);
+
+  JSONValue _toJSON() const @safe
+  {
+    return JSONValue([
+      "id": id.toString,
+      "type": getType.to!string,
+      "name": name
+    ]);
+  }
 }
 
 private class DockerInterface : NetworkInterface
