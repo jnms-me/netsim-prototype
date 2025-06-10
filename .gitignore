@@ -1,26 +1,15 @@
 .dub
 
-/client/__dummy.html
-/client/docs
-/client/docs.json
-/client/netsim-prototype-cmdline-client
-/client/netsim-prototype-cmdline-client-test-*
-
-/server/__dummy.html
-/server/docs
-/server/docs.json
-/server/netsim-prototype-server
-/server/netsim-prototype-server-test-*
+*_dpp.d
 
 *.a
 *.dll
 *.dylib
 *.exe
+*.i
 *.lib
 *.lst
 *.o
 *.obj
 *.so
-
-*_dpp.d
 *.tmp
