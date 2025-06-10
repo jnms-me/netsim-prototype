@@ -4,9 +4,9 @@
     {
       "type": "gdb",
       "request": "launch",
-      "name": "Debug D project with native-debug/gdb",
+      "name": "Debug server/netsim-prototype-server",
       "cwd": "${workspaceRoot}",
-      "target": "./netsim-prototype-server"
+      "target": "server/netsim-prototype-server"
     }
   ]
 }
