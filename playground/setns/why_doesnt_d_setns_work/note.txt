@@ -1,0 +1,1 @@
+Found it, was using the pid of the sudo process when using readlink /proc/[pid]/ns/net
