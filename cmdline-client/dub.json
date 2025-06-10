@@ -1,0 +1,17 @@
+{
+	"name": "netsim-prototype-cmdline-client",
+	"description": "Netsim server prototype",
+	"authors": [
+		"Jonas Meeuws"
+	],
+	"copyright": "Copyright © 2022, Jonas Meeuws",
+	"license": "proprietary",
+	"dependencies": {
+		"readline": "~>0.3.0",
+		"silly": "~>1.1.1"
+	},
+	"dflags": [
+		"-preview=in"
+	],
+	"targetType": "executable"
+}

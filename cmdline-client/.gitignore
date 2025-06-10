@@ -1,0 +1,15 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/netsim-prototype-cmdline-client
+netsim-prototype-cmdline-client.so
+netsim-prototype-cmdline-client.dylib
+netsim-prototype-cmdline-client.dll
+netsim-prototype-cmdline-client.a
+netsim-prototype-cmdline-client.lib
+netsim-prototype-cmdline-client-test-*
+*.exe
+*.o
+*.obj
+*.lst
