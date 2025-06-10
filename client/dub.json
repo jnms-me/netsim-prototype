@@ -1,0 +1,13 @@
+{
+	"authors": [
+		"jonas"
+	],
+	"copyright": "Copyright © 2021, jonas",
+	"dependencies": {
+		"gtk-d": "~>3.9.0",
+		"vibe-d": "~>0.9.4"
+	},
+	"description": "A minimal D application.",
+	"license": "proprietary",
+	"name": "netsim-prototype-client"
+}
